@@ -1,0 +1,315 @@
+
+<style>
+  body { margin: 0; background: #000; overflow: hidden; }
+  canvas { display: block; }
+</style>
+<canvas id="cave"></canvas>
+<script>
+const canvas = document.getElementById('cave');
+const ctx = canvas.getContext('2d');
+
+function resize() {
+  canvas.width = window.innerWidth || 700;
+  canvas.height = window.innerHeight || 500;
+}
+resize();
+window.addEventListener('resize', () => { resize(); });
+
+const torches = [
+  { x: 0.12, y: 0.58, phase: 0 },
+  { x: 0.38, y: 0.52, phase: 1.2 },
+  { x: 0.63, y: 0.55, phase: 0.7 },
+  { x: 0.87, y: 0.57, phase: 2.1 },
+];
+
+const stalactites = [
+  { x: 0.05, len: 0.18, w: 18 },
+  { x: 0.15, len: 0.28, w: 14 },
+  { x: 0.22, len: 0.12, w: 10 },
+  { x: 0.30, len: 0.22, w: 16 },
+  { x: 0.40, len: 0.15, w: 11 },
+  { x: 0.48, len: 0.30, w: 19 },
+  { x: 0.55, len: 0.10, w: 9 },
+  { x: 0.62, len: 0.24, w: 13 },
+  { x: 0.70, len: 0.18, w: 15 },
+  { x: 0.77, len: 0.32, w: 20 },
+  { x: 0.84, len: 0.14, w: 10 },
+  { x: 0.92, len: 0.22, w: 16 },
+  { x: 0.98, len: 0.17, w: 12 },
+];
+
+const stalagmites = [
+  { x: 0.08, len: 0.15, w: 16 },
+  { x: 0.18, len: 0.25, w: 13 },
+  { x: 0.25, len: 0.10, w: 9 },
+  { x: 0.33, len: 0.20, w: 15 },
+  { x: 0.44, len: 0.28, w: 18 },
+  { x: 0.52, len: 0.12, w: 10 },
+  { x: 0.60, len: 0.22, w: 14 },
+  { x: 0.68, len: 0.16, w: 11 },
+  { x: 0.75, len: 0.30, w: 17 },
+  { x: 0.82, len: 0.13, w: 9 },
+  { x: 0.90, len: 0.20, w: 13 },
+  { x: 0.96, len: 0.09, w: 8 },
+];
+
+let ripples = [];
+let time = 0;
+
+function addRipple(W, caveFloor) {
+  if (Math.random() < 0.015) {
+    ripples.push({
+      x: W * (0.1 + Math.random() * 0.8),
+      y: caveFloor + (canvas.height - caveFloor) * 0.3,
+      r: 1,
+      maxR: 30 + Math.random() * 40,
+      alpha: 0.5,
+      speed: 0.5 + Math.random() * 0.5
+    });
+  }
+  ripples = ripples.filter(r => r.alpha > 0);
+  ripples.forEach(r => {
+    r.r += r.speed;
+    r.alpha = 0.5 * (1 - r.r / r.maxR);
+  });
+}
+
+function draw() {
+  const W = canvas.width;
+  const H = canvas.height;
+  time += 0.03;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const caveTop = H * 0.05;
+  const caveFloor = H * 0.68;
+
+  ctx.fillStyle = '#0a0604';
+  ctx.fillRect(0, 0, W, H);
+
+  torches.forEach(t => {
+    const tx = t.x * W;
+    const ty = t.y * H;
+    const flicker = Math.sin(time * 3.7 + t.phase) * 0.15 + Math.sin(time * 7.1 + t.phase * 2) * 0.07;
+    const intensity = 0.85 + flicker;
+    const radius = W * (0.22 + flicker * 0.05);
+
+    const grad = ctx.createRadialGradient(tx, ty, 0, tx, ty, radius);
+    grad.addColorStop(0, `rgba(255,200,80,${0.22 * intensity})`);
+    grad.addColorStop(0.3, `rgba(220,120,30,${0.12 * intensity})`);
+    grad.addColorStop(0.7, `rgba(150,60,10,${0.05 * intensity})`);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(tx, ty, radius, radius * 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  const caveGrad = ctx.createLinearGradient(0, caveTop, 0, caveFloor);
+  caveGrad.addColorStop(0, '#1a0f06');
+  caveGrad.addColorStop(0.5, '#0d0804');
+  caveGrad.addColorStop(1, '#0a0604');
+  ctx.fillStyle = caveGrad;
+
+  ctx.beginPath();
+  ctx.moveTo(0, caveTop);
+  ctx.bezierCurveTo(W * 0.1, caveTop - H * 0.02, W * 0.2, caveTop + H * 0.02, W * 0.3, caveTop - H * 0.01);
+  ctx.bezierCurveTo(W * 0.45, caveTop + H * 0.015, W * 0.6, caveTop - H * 0.01, W * 0.75, caveTop + H * 0.02);
+  ctx.bezierCurveTo(W * 0.87, caveTop - H * 0.01, W * 0.95, caveTop + H * 0.01, W, caveTop);
+  ctx.lineTo(W, caveFloor);
+  ctx.bezierCurveTo(W * 0.9, caveFloor + H * 0.01, W * 0.7, caveFloor - H * 0.01, W * 0.5, caveFloor + H * 0.005);
+  ctx.bezierCurveTo(W * 0.3, caveFloor - H * 0.01, W * 0.1, caveFloor + H * 0.01, 0, caveFloor);
+  ctx.closePath();
+  ctx.fill();
+
+  stalactites.forEach(s => {
+    const sx = s.x * W;
+    const sy = caveTop + H * 0.01;
+    const len = s.len * H;
+    const hw = s.w * (W / 700);
+
+    const rr = ctx.createLinearGradient(sx, sy, sx, sy + len);
+    rr.addColorStop(0, '#3d2b1a');
+    rr.addColorStop(0.6, '#2a1c0f');
+    rr.addColorStop(1, '#1a0f06');
+
+    ctx.beginPath();
+    ctx.moveTo(sx - hw, sy);
+    ctx.bezierCurveTo(sx - hw * 0.8, sy + len * 0.4, sx - hw * 0.3, sy + len * 0.75, sx, sy + len);
+    ctx.bezierCurveTo(sx + hw * 0.3, sy + len * 0.75, sx + hw * 0.8, sy + len * 0.4, sx + hw, sy);
+    ctx.closePath();
+    ctx.fillStyle = rr;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(sx - hw * 0.3, sy);
+    ctx.bezierCurveTo(sx - hw * 0.15, sy + len * 0.5, sx - hw * 0.05, sy + len * 0.8, sx, sy + len);
+    ctx.strokeStyle = 'rgba(100,70,40,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    torches.forEach(t => {
+      const d = Math.abs(t.x * W - sx);
+      if (d < W * 0.25) {
+        const flicker = Math.sin(time * 3.7 + t.phase) * 0.1 + 0.85;
+        const a = (1 - d / (W * 0.25)) * 0.08 * flicker;
+        const shineGrad = ctx.createLinearGradient(sx - hw * 0.5, sy, sx + hw * 0.5, sy);
+        shineGrad.addColorStop(0, 'transparent');
+        shineGrad.addColorStop(0.4, `rgba(255,180,60,${a})`);
+        shineGrad.addColorStop(1, 'transparent');
+        ctx.beginPath();
+        ctx.moveTo(sx - hw, sy);
+        ctx.bezierCurveTo(sx - hw * 0.8, sy + len * 0.4, sx - hw * 0.3, sy + len * 0.75, sx, sy + len);
+        ctx.bezierCurveTo(sx + hw * 0.3, sy + len * 0.75, sx + hw * 0.8, sy + len * 0.4, sx + hw, sy);
+        ctx.closePath();
+        ctx.fillStyle = shineGrad;
+        ctx.fill();
+      }
+    });
+  });
+
+  stalagmites.forEach(s => {
+    const sx = s.x * W;
+    const baseY = caveFloor;
+    const len = s.len * H;
+    const hw = s.w * (W / 700);
+    const tipY = baseY - len;
+
+    const rr = ctx.createLinearGradient(sx, baseY, sx, tipY);
+    rr.addColorStop(0, '#3d2b1a');
+    rr.addColorStop(0.5, '#2a1c0f');
+    rr.addColorStop(1, '#1a0f06');
+
+    ctx.beginPath();
+    ctx.moveTo(sx - hw, baseY);
+    ctx.bezierCurveTo(sx - hw * 0.8, baseY - len * 0.4, sx - hw * 0.3, baseY - len * 0.75, sx, tipY);
+    ctx.bezierCurveTo(sx + hw * 0.3, baseY - len * 0.75, sx + hw * 0.8, baseY - len * 0.4, sx + hw, baseY);
+    ctx.closePath();
+    ctx.fillStyle = rr;
+    ctx.fill();
+
+    torches.forEach(t => {
+      const d = Math.abs(t.x * W - sx);
+      if (d < W * 0.25) {
+        const flicker = Math.sin(time * 3.7 + t.phase) * 0.1 + 0.85;
+        const a = (1 - d / (W * 0.25)) * 0.07 * flicker;
+        ctx.beginPath();
+        ctx.moveTo(sx - hw, baseY);
+        ctx.bezierCurveTo(sx - hw * 0.8, baseY - len * 0.4, sx - hw * 0.3, baseY - len * 0.75, sx, tipY);
+        ctx.bezierCurveTo(sx + hw * 0.3, baseY - len * 0.75, sx + hw * 0.8, baseY - len * 0.4, sx + hw, baseY);
+        ctx.closePath();
+        ctx.fillStyle = `rgba(255,160,50,${a})`;
+        ctx.fill();
+      }
+    });
+  });
+
+  const riverTop = caveFloor;
+  const riverH = H - caveFloor;
+
+  const riverBase = ctx.createLinearGradient(0, riverTop, 0, H);
+  riverBase.addColorStop(0, '#07131f');
+  riverBase.addColorStop(0.4, '#0a1a2a');
+  riverBase.addColorStop(1, '#05101a');
+  ctx.fillStyle = riverBase;
+  ctx.fillRect(0, riverTop, W, riverH);
+
+  torches.forEach(t => {
+    const tx = t.x * W;
+    const flicker = Math.sin(time * 3.7 + t.phase) * 0.15 + Math.sin(time * 7.1 + t.phase * 2) * 0.07;
+    const intensity = 0.85 + flicker;
+
+    const reflY = riverTop + riverH * 0.15;
+    const reflH = riverH * 0.6;
+    const reflGrad = ctx.createRadialGradient(tx, reflY, 0, tx, reflY, W * 0.18);
+    reflGrad.addColorStop(0, `rgba(255,180,60,${0.13 * intensity})`);
+    reflGrad.addColorStop(0.5, `rgba(200,100,20,${0.06 * intensity})`);
+    reflGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = reflGrad;
+    ctx.fillRect(tx - W * 0.2, riverTop, W * 0.4, riverH);
+
+    const col1 = `rgba(255,200,80,${0.35 * intensity})`;
+    const col2 = `rgba(255,150,40,${0.2 * intensity})`;
+    const col3 = 'rgba(0,0,0,0)';
+    for (let i = 0; i < 5; i++) {
+      const wy = riverTop + riverH * 0.05 + i * riverH * 0.06 + Math.sin(time * 1.5 + i * 0.7 + t.phase) * 3;
+      const ww = (W * 0.12 - i * W * 0.015) * intensity;
+      const offset = Math.sin(time * 2 + i * 1.1 + t.phase) * W * 0.015;
+
+      const wg = ctx.createLinearGradient(tx + offset - ww, wy, tx + offset + ww, wy);
+      wg.addColorStop(0, col3);
+      wg.addColorStop(0.5, i === 0 ? col1 : col2);
+      wg.addColorStop(1, col3);
+
+      ctx.beginPath();
+      ctx.ellipse(tx + offset, wy, ww, 2 + Math.sin(time + i) * 0.5, 0, 0, Math.PI * 2);
+      ctx.fillStyle = wg;
+      ctx.fill();
+    }
+  });
+
+  addRipple(W, riverTop);
+  ripples.forEach(r => {
+    ctx.beginPath();
+    ctx.ellipse(r.x, r.y, r.r, r.r * 0.35, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(180,130,60,${r.alpha})`;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  });
+
+  const surfaceGrad = ctx.createLinearGradient(0, riverTop, 0, riverTop + 6);
+  surfaceGrad.addColorStop(0, 'rgba(60,100,120,0.5)');
+  surfaceGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = surfaceGrad;
+  ctx.fillRect(0, riverTop, W, 6);
+
+  torches.forEach(t => {
+    const tx = t.x * W;
+    const ty = t.y * H;
+    const flicker = Math.sin(time * 4.3 + t.phase) * 0.2 + Math.sin(time * 9 + t.phase * 1.5) * 0.1;
+    const sz = (10 + flicker * 4) * (W / 700);
+
+    ctx.save();
+    ctx.translate(tx, ty);
+
+    ctx.fillStyle = '#5c3a1a';
+    ctx.fillRect(-3, 0, 6, 18 * (W / 700));
+
+    const fh = (22 + flicker * 6) * (W / 700);
+    const fw = (8 + flicker * 2) * (W / 700);
+
+    const fg = ctx.createRadialGradient(0, -fh * 0.3, 0, 0, 0, fh);
+    fg.addColorStop(0, 'rgba(255,255,200,0.95)');
+    fg.addColorStop(0.2, 'rgba(255,200,50,0.9)');
+    fg.addColorStop(0.5, 'rgba(255,100,10,0.7)');
+    fg.addColorStop(0.8, 'rgba(200,50,0,0.3)');
+    fg.addColorStop(1, 'rgba(0,0,0,0)');
+
+    ctx.beginPath();
+    ctx.moveTo(-fw * 0.5, 0);
+    ctx.bezierCurveTo(
+      -fw * (0.6 + flicker * 0.2), -fh * 0.3,
+      fw * (0.3 + flicker * 0.1), -fh * 0.7,
+      0, -fh
+    );
+    ctx.bezierCurveTo(
+      -fw * (0.3 + flicker * 0.1), -fh * 0.7,
+      fw * (0.6 + flicker * 0.2), -fh * 0.3,
+      fw * 0.5, 0
+    );
+    ctx.closePath();
+    ctx.fillStyle = fg;
+    ctx.fill();
+
+    ctx.restore();
+  });
+
+  ctx.fillStyle = '#12090380';
+  ctx.fillRect(0, 0, W, H * 0.06);
+  ctx.fillRect(0, H * 0.94, W, H * 0.06);
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>

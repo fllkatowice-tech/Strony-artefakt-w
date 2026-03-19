@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Osuwisko</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;width:100vw;height:100vh;overflow:hidden}
+canvas{display:block}
+#title{position:absolute;top:16px;left:50%;transform:translateX(-50%);
+  color:#806040;font-family:'Palatino Linotype',serif;font-size:13px;
+  letter-spacing:8px;text-transform:uppercase;text-shadow:0 0 28px #80401022;
+  white-space:nowrap;opacity:0;animation:fin 2.5s ease 0.5s forwards}
+#sub{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+  color:#2a1c0c;font-family:'Palatino Linotype',serif;font-size:9px;
+  letter-spacing:5px;opacity:0;animation:fin 2s ease 2s forwards}
+@keyframes fin{to{opacity:1}}
+</style>
+</head>
+<body>
+<div id="title">O S U W I S K O</div>
+<div id="sub">W/S/A/D — ruch &nbsp;·&nbsp; Q/E / ←→ — obrót &nbsp;·&nbsp; R/F — góra/dół wzroku</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+try {
+
+// ══ RENDERER ════════════════════════════════════════
+var renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled = false;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.6;
+document.body.appendChild(renderer.domElement);
+
+var scene = new THREE.Scene();
+scene.background = new THREE.Color(0xb8c8d8);
+scene.fog = new THREE.FogExp2(0xc0d0e0, 0.018);
+
+var camera = new THREE.PerspectiveCamera(72, innerWidth/innerHeight, 0.1, 200);
+camera.position.set(0, 0, 40);
+
+// ══ KEYS + LOOK ════════════════════════════════════
+var keys={};
+document.addEventListener('keydown',function(e){keys[e.code]=true;});
+document.addEventListener('keyup',  function(e){keys[e.code]=false;});
+var yaw=0, pitch=0.08;
+var playerX=0, playerZ=40, SPEED=8.0;
+var camBob=0, stepT=0, footT=0.3;
+
+// ══ TEXTURES ════════════════════════════════════════
+function makeTex(w,h,fn){
+  var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  fn(cv.getContext('2d'),w,h);
+  var t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  return t;
+}
+
+// Muddy earth texture
+var mudTex = makeTex(512,512,function(ctx,w,h){
+  ctx.fillStyle='#1a1008'; ctx.fillRect(0,0,w,h);
+  // mud layers / strata
+  for(var n=0;n<4000;n++){
+    var mx=Math.random()*w, my=Math.random()*h;
+    var v=0.35+Math.random()*0.55;
+    var r=Math.floor(38*v),g=Math.floor(26*v),b=Math.floor(10*v);
+    ctx.fillStyle='rgba('+r+','+g+','+b+',0.18)';
+    ctx.fillRect(mx,my,1+Math.random()*4,1+Math.random()*2);
+  }
+  // horizontal strata bands
+  for(var band=0;band<12;band++){
+    var by=Math.random()*h;
+    var v2=0.4+Math.random()*0.4;
+    ctx.fillStyle='rgba('+Math.floor(50*v2)+','+Math.floor(32*v2)+','+Math.floor(12*v2)+',0.12)';
+    ctx.fillRect(0,by,w,2+Math.random()*6);
+  }
+  // gravel/pebble dots
+  for(var p=0;p<300;p++){
+    var px=Math.random()*w,py=Math.random()*h,pr=1+Math.random()*3;
+    var v3=0.5+Math.random()*0.5;
+    ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2);
+    ctx.fillStyle='rgba('+Math.floor(60*v3)+','+Math.floor(50*v3)+','+Math.floor(40*v3)+',0.55)';
+    ctx.fill();
+  }
+  // crack lines
+  for(var c=0;c<18;c++){
+    ctx.beginPath();
+    var cx=Math.random()*w,cy=Math.random()*h;
+    ctx.moveTo(cx,cy);
+    for(var cs=0;cs<5;cs++){cx+=(Math.random()-0.5)*30;cy+=(Math.random()-0.5)*20;ctx.lineTo(cx,cy);}
+    ctx.strokeStyle='rgba(8,5,2,'+(0.12+Math.random()*0.2)+')';
+    ctx.lineWidth=0.5+Math.random()*1.5; ctx.stroke();
+  }
+});
+mudTex.repeat.set(6,6);
+
+// Rock texture — darker, harder
+var rockTex = makeTex(512,512,function(ctx,w,h){
+  ctx.fillStyle='#141210'; ctx.fillRect(0,0,w,h);
+  for(var n=0;n<3000;n++){
+    var v=0.4+Math.random()*0.45;
+    var r=Math.floor(32*v),g=Math.floor(28*v),b=Math.floor(22*v);
+    ctx.fillStyle='rgba('+r+','+g+','+b+',0.22)';
+    ctx.fillRect(Math.random()*w,Math.random()*h,1+Math.random()*5,1+Math.random()*3);
+  }
+  // strata
+  for(var s=0;s<8;s++){
+    var sy=Math.random()*h;
+    ctx.fillStyle='rgba(20,16,10,'+(0.1+Math.random()*0.15)+')';
+    ctx.fillRect(0,sy,w,1+Math.random()*4);
+  }
+  // fracture lines
+  for(var f=0;f<24;f++){
+    ctx.beginPath();
+    var fx=Math.random()*w,fy=Math.random()*h;
+    ctx.moveTo(fx,fy);
+    for(var fs=0;fs<4;fs++){fx+=(Math.random()-0.5)*50;fy+=(Math.random()-0.5)*35;ctx.lineTo(fx,fy);}
+    ctx.strokeStyle='rgba(6,4,2,'+(0.15+Math.random()*0.25)+')';
+    ctx.lineWidth=0.4+Math.random()*1.2; ctx.stroke();
+  }
+});
+rockTex.repeat.set(3,3);
+
+// Sky texture — overcast, bruised
+var skyTex = makeTex(512,256,function(ctx,w,h){
+  var g=ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#080c14'); g.addColorStop(0.4,'#0e1420'); g.addColorStop(1,'#1a2030');
+  ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+  // cloud masses
+  for(var cl=0;cl<22;cl++){
+    var cg=ctx.createRadialGradient(Math.random()*w,Math.random()*h,0,
+      Math.random()*w,Math.random()*h,30+Math.random()*80);
+    cg.addColorStop(0,'rgba(25,30,42,'+(0.15+Math.random()*0.2)+')');
+    cg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=cg; ctx.fillRect(0,0,w,h);
+  }
+});
+
+// ══ MATERIALS (6 max) ═══════════════════════════════
+var matMud  = new THREE.MeshStandardMaterial({map:mudTex,  color:0x6a4828, roughness:0.98, metalness:0.0});
+var matRock = new THREE.MeshStandardMaterial({map:rockTex, color:0x484038, roughness:0.94, metalness:0.04});
+var matWater= new THREE.MeshStandardMaterial({color:0x101c28, roughness:0.04, metalness:0.8,
+  transparent:true, opacity:0.82, emissive:0x050e18, emissiveIntensity:0.25});
+var matTree = new THREE.MeshStandardMaterial({color:0x2e2010, roughness:0.95, metalness:0.0});
+var matDebris= new THREE.MeshStandardMaterial({map:mudTex, color:0x5a3e22, roughness:0.97, metalness:0.0});
+
+// ══ TERRAIN — displacement heightfield ══════════════
+var TERRAIN_W = 80, TERRAIN_D = 80, TERRAIN_SEG = 80;
+var terrainGeo = new THREE.PlaneGeometry(TERRAIN_W, TERRAIN_D, TERRAIN_SEG, TERRAIN_SEG);
+terrainGeo.rotateX(-Math.PI/2);
+
+var pos = terrainGeo.attributes.position;
+var W1 = TERRAIN_SEG+1;
+
+// height function — mountain slope with landslide scar
+function terrainHeight(xi, zi){
+  var nx = xi/TERRAIN_SEG*2-1; // -1..1
+  var nz = zi/TERRAIN_SEG*2-1;
+
+  // Base mountain slope — rises from front to back
+  var h = nz * 18 + 12;
+
+  // Multi-octave ridge
+  h += Math.sin(nx*2.1+0.3)*4 + Math.sin(nx*4.8+1.1)*2 + Math.sin(nx*9+2)*0.8;
+  h += Math.sin(nz*1.8+0.7)*3 + Math.sin(nz*3.5+1.4)*1.5;
+
+  // Valleys
+  h -= Math.exp(-Math.pow(nx*2.5,2))*3;
+
+  // Landslide SCAR — central gouge running down the slope
+  var scarX = nx + 0.1; // slightly off-centre
+  var scarW = 0.22 + Math.abs(nz)*0.12;
+  var scarDepth = Math.exp(-Math.pow(scarX/scarW,2));
+  // Scar only on upper part (nz>-0.3)
+  if(nz > -0.35){
+    h -= scarDepth * (6 + nz*8); // deeper higher up
+  }
+
+  // Debris lobe at the bottom — piled up material
+  if(nz < -0.25){
+    var lobeX = nx + 0.08;
+    var lobe = Math.exp(-Math.pow(lobeX/0.38,2)) * Math.exp(-Math.pow((nz+0.55)/0.22,2));
+    h += lobe * 7;
+  }
+
+  // Fine noise
+  h += Math.sin(nx*22+nz*18)*0.15 + Math.sin(nx*41+nz*31)*0.07;
+
+  return h;
+}
+
+// Apply heights
+for(var zi=0;zi<W1;zi++){
+  for(var xi=0;xi<W1;xi++){
+    var idx=zi*W1+xi;
+    var h=terrainHeight(xi,zi);
+    pos.setY(idx,h);
+  }
+}
+terrainGeo.computeVertexNormals();
+
+// Colour terrain by height/position — mud scar vs grass
+var colors=new Float32Array(pos.count*3);
+for(var zi2=0;zi2<W1;zi2++){
+  for(var xi2=0;xi2<W1;xi2++){
+    var idx2=zi2*W1+xi2;
+    var nx2=xi2/TERRAIN_SEG*2-1, nz2=zi2/TERRAIN_SEG*2-1;
+    var h2=pos.getY(idx2);
+    var scarX2=nx2+0.1, scarW2=0.22+Math.abs(nz2)*0.12;
+    var inScar=Math.exp(-Math.pow(scarX2/scarW2,2));
+    var inDebris=nz2<-0.25?Math.exp(-Math.pow((nx2+0.08)/0.4,2))*Math.exp(-Math.pow((nz2+0.55)/0.24,2)):0;
+    // mud colour
+    var mr=0.29,mg=0.19,mb=0.09;
+    // grass colour
+    var gr2=0.10,gg=0.17,gb=0.06;
+    // rock colour
+    var rr=0.20,rg=0.18,rb=0.14;
+    var mudAmt=Math.min(1,inScar*2+inDebris*1.5);
+    var rockAmt=h2>18?Math.min(1,(h2-18)/8):0;
+    var t1=mudAmt, t2=rockAmt*(1-mudAmt);
+    var t3=1-t1-t2;
+    colors[idx2*3+0]=mr*t1+rr*t2+gr2*t3;
+    colors[idx2*3+1]=mg*t1+rg*t2+gg*t3;
+    colors[idx2*3+2]=mb*t1+rb*t2+gb*t3;
+  }
+}
+terrainGeo.setAttribute('color',new THREE.BufferAttribute(colors,3));
+matMud.vertexColors=true;
+var terrain=new THREE.Mesh(terrainGeo,matMud);
+scene.add(terrain);
+
+// ══ LARGE ROCKS scattered in scar ═══════════════════
+var rockGeo=new THREE.DodecahedronGeometry(1,1);
+var rockPositions=[
+  [1.5,-0.5,4],[3,-1,0],[-1,0,8],[2.5,-2,12],[-2,-1,16],
+  [0.5,-3,20],[4,-4,25],[-3,-3,22],[1,-5,28],[-1.5,-4,18],
+  [6,-2,6],[-5,-1,10],[3.5,-5,32],[-2.5,-5,30],[0,-6,35]
+];
+rockPositions.forEach(function(rp){
+  var rs=0.4+Math.random()*1.2;
+  var rock=new THREE.Mesh(rockGeo,matRock);
+  var rx=rp[0],rz=rp[2];
+  // sample terrain height at rock position
+  var rnx=(rx/TERRAIN_W+0.5)*TERRAIN_SEG, rnz=(rz/TERRAIN_D+0.5)*TERRAIN_SEG;
+  var rh=terrainHeight(Math.round(rnx),Math.round(rnz));
+  rock.position.set(rx,rh+rs*0.4+rp[1]*0.2,rz);
+  rock.scale.set(rs,rs*0.7,rs*1.1);
+  rock.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);
+  scene.add(rock);
+});
+
+// ══ TREES — upright and fallen ═══════════════════════
+var trunkGeo=new THREE.CylinderGeometry(0.12,0.18,3.5,8);
+var crownGeo=new THREE.ConeGeometry(1.1,3.2,8);
+
+
+function addTree(tx,tz,tilt,fallen){
+  var rnx2=(tx/TERRAIN_W+0.5)*TERRAIN_SEG, rnz2=(tz/TERRAIN_D+0.5)*TERRAIN_SEG;
+  var th=terrainHeight(Math.round(Math.max(0,Math.min(TERRAIN_SEG,rnx2))),
+                       Math.round(Math.max(0,Math.min(TERRAIN_SEG,rnz2))));
+  var g=new THREE.Group();
+  g.position.set(tx,th,tz);
+  var trunk=new THREE.Mesh(trunkGeo,matTree);
+  trunk.position.y=1.75;
+  if(fallen){
+    g.rotation.z=Math.PI/2+tilt;
+    g.rotation.y=Math.random()*Math.PI;
+  } else {
+    g.rotation.z=tilt; g.rotation.x=(Math.random()-0.5)*0.15;
+  }
+  g.add(trunk);
+  if(!fallen){
+    var crown=new THREE.Mesh(crownGeo,matTree);
+    crown.position.y=4.5; g.add(crown);
+    // Second crown layer
+    var crown2=new THREE.Mesh(new THREE.ConeGeometry(0.8,2.6,8),matTree);
+    crown2.position.y=6.0; g.add(crown2);
+  }
+  scene.add(g);
+}
+
+// Intact trees on slopes outside scar
+[[-12,25],[-10,15],[-14,5],[-8,30],[10,22],[12,12],[14,28],[8,18],
+ [-16,20],[-18,10],[16,8],[18,20],[-20,30],[20,15]].forEach(function(tp){
+  addTree(tp[0],tp[1],(Math.random()-0.5)*0.12,false);
+});
+// Fallen trees in scar — knocked down by slide
+[[-1,5],[2,10],[0.5,18],[-2,25],[3,15]].forEach(function(tp){
+  addTree(tp[0],tp[1],(Math.random()-0.5)*0.3,true);
+});
+
+// ══ MUD FLOW STREAM ══════════════════════════════════
+// Flowing mud channel in the scar — thin planes
+
+for(var fi=0;fi<18;fi++){
+  var fz=-8+fi*3.8;
+  var fw=1.2+Math.sin(fi*0.8)*0.6;
+  var fm=new THREE.Mesh(new THREE.PlaneGeometry(fw,3.5),matDebris);
+  var fnx=(0.08/TERRAIN_W+0.5)*TERRAIN_SEG, fnz=(fz/TERRAIN_D+0.5)*TERRAIN_SEG;
+  var fh=terrainHeight(Math.round(Math.max(0,Math.min(TERRAIN_SEG,fnx))),
+                       Math.round(Math.max(0,Math.min(TERRAIN_SEG,fnz))))+0.05;
+  fm.rotation.x=-Math.PI/2;
+  fm.position.set(0.2+Math.sin(fi*0.5)*0.3,fh,fz);
+  scene.add(fm);
+}
+
+// ══ DEBRIS LOBE particles ════════════════════════════
+var debrisG=new THREE.BufferGeometry();
+var debrisP=new Float32Array(800*3);
+for(var di=0;di<800;di++){
+  var dangle=Math.random()*Math.PI*2;
+  var drad=Math.random()*8;
+  var dx=Math.cos(dangle)*drad*0.8, dz=-28+Math.sin(dangle)*drad*0.5+drad*0.3;
+  var dnx=(dx/TERRAIN_W+0.5)*TERRAIN_SEG, dnz=(dz/TERRAIN_D+0.5)*TERRAIN_SEG;
+  var dh=terrainHeight(Math.round(Math.max(0,Math.min(TERRAIN_SEG,dnx))),
+                       Math.round(Math.max(0,Math.min(TERRAIN_SEG,dnz))))+0.1+Math.random()*0.3;
+  debrisP[di*3]=dx; debrisP[di*3+1]=dh; debrisP[di*3+2]=dz;
+}
+debrisG.setAttribute('position',new THREE.BufferAttribute(debrisP,3));
+scene.add(new THREE.Points(debrisG,new THREE.PointsMaterial({
+  color:0x503820,size:0.22,transparent:true,opacity:0.7,sizeAttenuation:true})));
+
+// ══ DUST / MIST particles ═══════════════════════════
+var dustG=new THREE.BufferGeometry();
+var dustP=new Float32Array(300*3);
+var dustV=[];
+for(var di2=0;di2<300;di2++){
+  dustP[di2*3]  =(Math.random()-0.5)*30;
+  dustP[di2*3+1]=Math.random()*12+1;
+  dustP[di2*3+2]=(Math.random()-0.5)*30;
+  dustV.push({vx:(Math.random()-0.5)*0.04,vy:(Math.random()-0.5)*0.015,vz:(Math.random()-0.5)*0.03});
+}
+dustG.setAttribute('position',new THREE.BufferAttribute(dustP,3));
+scene.add(new THREE.Points(dustG,new THREE.PointsMaterial({
+  color:0x806050,size:0.12,transparent:true,opacity:0.3,sizeAttenuation:true})));
+
+// ══ WATER at bottom ══════════════════════════════════
+var waterGeo=new THREE.PlaneGeometry(20,12,20,20);
+waterGeo.rotateX(-Math.PI/2);
+var waterPos=waterGeo.attributes.position;
+for(var wi=0;wi<waterPos.count;wi++){
+  waterPos.setY(wi,-4.5+Math.random()*0.08);
+}
+var water=new THREE.Mesh(waterGeo,matWater);
+water.position.set(0,0,-32);
+scene.add(water);
+
+
+
+// ══ LIGHTS ═══════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x9aa8b8,1.0));
+// Overcast sky — soft top light
+var skyL=new THREE.DirectionalLight(0xfff8e8,2.2);
+skyL.position.set(5,30,10); scene.add(skyL);
+// Cold side fill
+var sideL=new THREE.DirectionalLight(0xc8d8f0,0.8);
+sideL.position.set(-20,10,5); scene.add(sideL);
+// Muddy warm from debris
+var mudL=new THREE.PointLight(0x806040,3,25,1.6);
+mudL.position.set(0,2,-28); scene.add(mudL);
+
+function eio(t){return t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+
+// ══ LANDSLIDE ANIMATION STATE ════════════════════════
+// Animate chunks of debris sliding down
+var CHUNK_N=60;
+var chunks=[];
+for(var ci=0;ci<CHUNK_N;ci++){
+  var csx=(Math.random()-0.5)*5;
+  var csz=-8+Math.random()*28; // start spread along scar
+  var cnx2=(csx/TERRAIN_W+0.5)*TERRAIN_SEG, cnz2=(csz/TERRAIN_D+0.5)*TERRAIN_SEG;
+  var csh=terrainHeight(Math.round(Math.max(0,Math.min(TERRAIN_SEG,cnx2))),
+                        Math.round(Math.max(0,Math.min(TERRAIN_SEG,cnz2))));
+  var cs=0.1+Math.random()*0.5;
+  var cGeo=Math.random()<0.5?new THREE.BoxGeometry(cs,cs*0.6,cs*0.8):
+           new THREE.DodecahedronGeometry(cs*0.5,0);
+  var cm=new THREE.Mesh(cGeo,matDebris);
+  cm.position.set(csx,csh+cs*0.5,csz);
+  cm.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);
+  scene.add(cm);
+  chunks.push({
+    mesh:cm, x:csx, y:csh+cs*0.5, z:csz,
+    vx:(Math.random()-0.5)*0.4,
+    vy:-0.5-Math.random()*1.5,
+    vz:-(2+Math.random()*4),   // sliding down -Z (toward camera)
+    spinning:Math.random()*3,
+    settled:false,
+    settleTimer:0,
+    delay:Math.random()*3.0,   // staggered start
+    size:cs
+  });
+}
+
+// ══ AUDIO ═══════════════════════════════════════════
+var audioCtx=null;
+function initAudio(){
+  if(audioCtx) return;
+  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+  // Rumble
+  var buf=audioCtx.createBuffer(1,audioCtx.sampleRate*3,audioCtx.sampleRate);
+  var d=buf.getChannelData(0);
+  for(var n=0;n<d.length;n++) d[n]=(Math.random()*2-1);
+  var src=audioCtx.createBufferSource(); src.buffer=buf; src.loop=true;
+  var f=audioCtx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=200;
+  var g=audioCtx.createGain(); g.gain.value=0.18;
+  src.connect(f); f.connect(g); g.connect(audioCtx.destination); src.start();
+  // Sliding gravel hiss
+  var buf2=audioCtx.createBuffer(1,audioCtx.sampleRate*2,audioCtx.sampleRate);
+  var d2=buf2.getChannelData(0);
+  for(var n2=0;n2<d2.length;n2++) d2[n2]=(Math.random()*2-1);
+  var src2=audioCtx.createBufferSource(); src2.buffer=buf2; src2.loop=true;
+  var f2=audioCtx.createBiquadFilter(); f2.type='bandpass'; f2.frequency.value=1200; f2.Q.value=0.6;
+  var g2=audioCtx.createGain(); g2.gain.value=0.1;
+  src2.connect(f2); f2.connect(g2); g2.connect(audioCtx.destination); src2.start();
+  // Rain
+  var buf3=audioCtx.createBuffer(1,audioCtx.sampleRate*2,audioCtx.sampleRate);
+  var d3=buf3.getChannelData(0);
+  for(var n3=0;n3<d3.length;n3++) d3[n3]=(Math.random()*2-1);
+  var src3=audioCtx.createBufferSource(); src3.buffer=buf3; src3.loop=true;
+  var f3=audioCtx.createBiquadFilter(); f3.type='bandpass'; f3.frequency.value=3500; f3.Q.value=0.4;
+  var g3=audioCtx.createGain(); g3.gain.value=0.07;
+  src3.connect(f3); f3.connect(g3); g3.connect(audioCtx.destination); src3.start();
+}
+
+
+
+// ══ PIT / HOLE in terrain ══════════════════════════
+var pitX=0.5, pitZ=28;
+var pitNX=(pitX/TERRAIN_W+0.5)*TERRAIN_SEG;
+var pitNZ=(pitZ/TERRAIN_D+0.5)*TERRAIN_SEG;
+var pitH=terrainHeight(Math.round(Math.max(0,Math.min(TERRAIN_SEG,pitNX))),
+                       Math.round(Math.max(0,Math.min(TERRAIN_SEG,pitNZ))));
+var pitGeo=new THREE.BoxGeometry(5,6,4);
+var pitMat=new THREE.MeshStandardMaterial({color:0x080604,roughness:1.0,metalness:0.0,side:THREE.BackSide});
+var pitMesh=new THREE.Mesh(pitGeo,pitMat);
+pitMesh.position.set(pitX,pitH-1.5,pitZ);
+scene.add(pitMesh);
+// Rim
+var rimMat2=new THREE.MeshStandardMaterial({color:0x2a2018,roughness:0.96,metalness:0.0});
+[[0,2.2,0],[0,-2.2,0],[2.7,0,Math.PI/2],[-2.7,0,Math.PI/2]].forEach(function(r){
+  var rim=new THREE.Mesh(new THREE.BoxGeometry(5.4,0.3,0.3),rimMat2);
+  rim.position.set(pitX+r[0],pitH+0.3,pitZ+r[1]);
+  rim.rotation.y=r[2]||0; scene.add(rim);
+});
+// AABB for collision
+var PIT_AABB={minX:pitX-2.7,maxX:pitX+2.7,minZ:pitZ-2.1,maxZ:pitZ+2.1};
+
+// ══ CLOCK ════════════════════════════════════════════
+var clock=new THREE.Clock(), elapsed=0;
+var slideStarted=false, slideDelay=2.5;
+
+var fd=document.createElement('div');
+fd.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;background:#000;pointer-events:none;transition:opacity 3s ease';
+document.body.appendChild(fd);
+setTimeout(function(){fd.style.opacity='0';},100);
+
+function animate(){
+  requestAnimationFrame(animate);
+  var dt=Math.min(clock.getDelta(),0.05);
+  elapsed+=dt;
+
+  // ── First-person movement ──────────────────────────
+  var TURN=1.9;
+  if(keys['KeyQ']||keys['ArrowLeft'])  yaw+=TURN*dt;
+  if(keys['KeyE']||keys['ArrowRight']) yaw-=TURN*dt;
+  if(keys['KeyR']) pitch=Math.min(0.5,pitch+dt*1.2);
+  if(keys['KeyF']) pitch=Math.max(-0.5,pitch-dt*1.2);
+
+  var fwd  =new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+  var right=new THREE.Vector3( Math.cos(yaw),0,-Math.sin(yaw));
+  var mx=0,mz=0,moving=false;
+  if(keys['KeyW']||keys['ArrowUp'])  {mx+=fwd.x*SPEED*dt;mz+=fwd.z*SPEED*dt;moving=true;}
+  if(keys['KeyS']||keys['ArrowDown']){mx-=fwd.x*SPEED*dt;mz-=fwd.z*SPEED*dt;moving=true;}
+  if(keys['KeyA']){mx-=right.x*SPEED*dt;mz-=right.z*SPEED*dt;moving=true;}
+  if(keys['KeyD']){mx+=right.x*SPEED*dt;mz+=right.z*SPEED*dt;moving=true;}
+
+  var nx=playerX+mx, nz=playerZ+mz;
+
+  // ── Pit collision — can't enter the hole ───────────
+  var inPitX=nx>PIT_AABB.minX && nx<PIT_AABB.maxX;
+  var inPitZ=nz>PIT_AABB.minZ && nz<PIT_AABB.maxZ;
+  if(inPitX && inPitZ){
+    // Slide along nearest wall
+    var cx=(PIT_AABB.minX+PIT_AABB.maxX)/2;
+    var cz2=(PIT_AABB.minZ+PIT_AABB.maxZ)/2;
+    var dxP=nx-cx, dzP=nz-cz2;
+    var hw2=2.7+0.4, hd2=2.1+0.4;
+    var ox=hw2-Math.abs(dxP), oz=hd2-Math.abs(dzP);
+    if(ox<oz){ nx+=dxP>0?ox:-ox; }
+    else      { nz+=dzP>0?oz:-oz; }
+  }
+
+  // ── World bounds ───────────────────────────────────
+  nx=Math.max(-TERRAIN_W/2+1, Math.min(TERRAIN_W/2-1, nx));
+  nz=Math.max(-TERRAIN_D/2+1, Math.min(TERRAIN_D/2-1, nz));
+
+  playerX=nx; playerZ=nz;
+
+  // ── Terrain height under player ────────────────────
+  var tnx=(playerX/TERRAIN_W+0.5)*TERRAIN_SEG;
+  var tnz=(playerZ/TERRAIN_D+0.5)*TERRAIN_SEG;
+  var groundH2=terrainHeight(
+    Math.round(Math.max(0,Math.min(TERRAIN_SEG,tnx))),
+    Math.round(Math.max(0,Math.min(TERRAIN_SEG,tnz))));
+
+  if(moving){stepT+=dt;footT+=dt;}else{stepT=0;footT=0.35;}
+  var tBob=moving?Math.sin(stepT*5.5)*0.06:0;
+  camBob+=(tBob-camBob)*0.18;
+
+  var EYE_H=1.75;
+  camera.position.set(playerX, groundH2+EYE_H+camBob, playerZ);
+  camera.rotation.order='YXZ';
+  camera.rotation.y=yaw;
+  camera.rotation.x=pitch;
+
+  // ── Sliding chunks ─────────────────────────────────
+  var slideT=elapsed-slideDelay;
+  chunks.forEach(function(ch){
+    if(slideT<ch.delay) return;
+    if(ch.settled) return;
+    var localT=slideT-ch.delay;
+    // Sample terrain under chunk
+    var cnx3=(ch.x/TERRAIN_W+0.5)*TERRAIN_SEG;
+    var cnz3=(ch.z/TERRAIN_D+0.5)*TERRAIN_SEG;
+    var groundH=terrainHeight(
+      Math.round(Math.max(0,Math.min(TERRAIN_SEG,cnx3))),
+      Math.round(Math.max(0,Math.min(TERRAIN_SEG,cnz3))));
+
+    ch.vy+=-9.8*dt*0.5; // gravity component
+    ch.x+=ch.vx*dt; ch.z+=ch.vz*dt; ch.y+=ch.vy*dt;
+
+    // Ground collision
+    if(ch.y<groundH+ch.size*0.3){
+      ch.y=groundH+ch.size*0.3;
+      ch.vy=Math.abs(ch.vy)*0.25; // bounce damp
+      ch.vx*=0.82; ch.vz*=0.82;
+      // Settle when slow
+      if(Math.abs(ch.vz)<0.08 && Math.abs(ch.vx)<0.08){
+        ch.settled=true;
+      }
+    }
+    // Tumble
+    ch.mesh.rotation.x+=ch.vz*dt*ch.spinning*0.3;
+    ch.mesh.rotation.z+=ch.vx*dt*ch.spinning*0.3;
+    ch.mesh.position.set(ch.x,ch.y,ch.z);
+  });
+
+  // ── Water ripple ─────────────────────────────────
+  var wPos=waterGeo.attributes.position;
+  for(var wi2=0;wi2<wPos.count;wi2++){
+    var wx2=wPos.getX(wi2),wz2=wPos.getZ(wi2);
+    wPos.setY(wi2,-4.5+Math.sin(elapsed*1.8+wx2*0.8+wz2*0.5)*0.06+
+      Math.sin(elapsed*2.4+wx2*1.3-wz2*0.7)*0.04);
+  }
+  wPos.needsUpdate=true;
+  waterGeo.computeVertexNormals();
+
+
+
+  // ── Dust drift ────────────────────────────────────
+  for(var di3=0;di3<300;di3++){
+    dustP[di3*3]  +=dustV[di3].vx;
+    dustP[di3*3+1]+=dustV[di3].vy;
+    dustP[di3*3+2]+=dustV[di3].vz;
+    if(dustP[di3*3+1]>14) dustP[di3*3+1]=0.5;
+    if(dustP[di3*3+1]<0)  dustP[di3*3+1]=12;
+  }
+  dustG.attributes.position.needsUpdate=true;
+
+  // ── Mud flow shimmer ─────────────────────────────
+  mudL.intensity=3.5+Math.sin(elapsed*2.1)*0.8;
+
+  renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener('resize',function(){
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+}catch(e){
+  document.body.innerHTML='<div style="color:red;padding:20px;font-family:monospace;white-space:pre">'+e.message+'\n'+e.stack+'</div>';
+}
+</script>
+</body>
+</html>

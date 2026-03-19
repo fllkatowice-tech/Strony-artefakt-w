@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Róża Lutra</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; width:100vw; height:100vh; overflow:hidden; }
+canvas { display:block; }
+#title {
+  position:absolute; top:16px; left:50%; transform:translateX(-50%);
+  color:#e8c050; font-family:'Palatino Linotype',serif;
+  font-size:17px; letter-spacing:5px; text-transform:uppercase;
+  text-shadow:0 0 24px #c8a040dd; white-space:nowrap;
+  opacity:0; animation:fin 2s ease 1.2s forwards;
+}
+@keyframes fin { to{opacity:1;} }
+</style>
+</head>
+<body>
+<div id="title">✠ &nbsp; R Ó Ż A &nbsp; L U T R A &nbsp; ✠</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════
+// SCENE
+// ══════════════════════════════════════════════════════
+var scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050402);
+scene.fog = new THREE.FogExp2(0x050402, 0.035);
+
+var camera = new THREE.PerspectiveCamera(36, innerWidth/innerHeight, 0.01, 200);
+camera.position.set(0, 0, 22);
+camera.lookAt(0, 0, 0);
+
+var renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.45;
+document.body.appendChild(renderer.domElement);
+
+// ══════════════════════════════════════════════════════
+// TEXTURES
+// ══════════════════════════════════════════════════════
+function makeGoldTex(){
+  var c=document.createElement('canvas'); c.width=512; c.height=512;
+  var ctx=c.getContext('2d');
+  var g=ctx.createRadialGradient(256,240,8,256,256,270);
+  g.addColorStop(0,'#ffe878'); g.addColorStop(0.3,'#f0c028');
+  g.addColorStop(0.6,'#c89010'); g.addColorStop(1,'#7a5004');
+  ctx.fillStyle=g; ctx.fillRect(0,0,512,512);
+  for(var i=0;i<140;i++){
+    var a=Math.random()*Math.PI*2, r=Math.random()*240;
+    ctx.beginPath();
+    ctx.arc(256+Math.cos(a)*r,256+Math.sin(a)*r,0.5+Math.random()*2.5,0,Math.PI*2);
+    ctx.fillStyle='rgba(255,248,140,'+(0.05+Math.random()*0.18)+')'; ctx.fill();
+  }
+  for(var j=0;j<50;j++){
+    ctx.beginPath();
+    ctx.moveTo(Math.random()*512,Math.random()*512);
+    ctx.lineTo(Math.random()*512,Math.random()*512);
+    ctx.strokeStyle='rgba(80,50,5,'+(0.04+Math.random()*0.1)+')';
+    ctx.lineWidth=0.3+Math.random()*0.8; ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function makeWhiteTex(){
+  var c=document.createElement('canvas'); c.width=256; c.height=256;
+  var ctx=c.getContext('2d');
+  var g=ctx.createRadialGradient(128,100,5,128,128,140);
+  g.addColorStop(0,'#ffffff'); g.addColorStop(0.5,'#f0ede4');
+  g.addColorStop(1,'#ddd9ce');
+  ctx.fillStyle=g; ctx.fillRect(0,0,256,256);
+  for(var i=0;i<40;i++){
+    ctx.beginPath();
+    ctx.arc(Math.random()*256,Math.random()*256,0.5+Math.random()*3,0,Math.PI*2);
+    ctx.fillStyle='rgba(220,215,200,'+(0.05+Math.random()*0.12)+')'; ctx.fill();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function makeRedTex(){
+  var c=document.createElement('canvas'); c.width=128; c.height=128;
+  var ctx=c.getContext('2d');
+  var g=ctx.createRadialGradient(60,50,3,64,64,72);
+  g.addColorStop(0,'#ff3030'); g.addColorStop(0.45,'#cc0010');
+  g.addColorStop(1,'#7a0008');
+  ctx.fillStyle=g; ctx.fillRect(0,0,128,128);
+  return new THREE.CanvasTexture(c);
+}
+
+function makeBlueTex(){
+  var c=document.createElement('canvas'); c.width=256; c.height=256;
+  var ctx=c.getContext('2d');
+  var g=ctx.createRadialGradient(128,120,5,128,128,140);
+  g.addColorStop(0,'#a8d8f0'); g.addColorStop(0.4,'#70b8e8');
+  g.addColorStop(0.8,'#3888c8'); g.addColorStop(1,'#1850a0');
+  ctx.fillStyle=g; ctx.fillRect(0,0,256,256);
+  return new THREE.CanvasTexture(c);
+}
+
+var goldTex  = makeGoldTex();
+var whiteTex = makeWhiteTex();
+var redTex   = makeRedTex();
+var blueTex  = makeBlueTex();
+
+// ══════════════════════════════════════════════════════
+// MATERIALS
+// ══════════════════════════════════════════════════════
+var goldBright = new THREE.MeshStandardMaterial({
+  map:goldTex, color:0xf0c030,
+  roughness:0.12, metalness:1.0,
+  emissive:0x6a3c00, emissiveIntensity:0.28
+});
+var goldMid = new THREE.MeshStandardMaterial({
+  map:goldTex, color:0xd4a010,
+  roughness:0.2, metalness:1.0,
+  emissive:0x3a2000, emissiveIntensity:0.15
+});
+var goldDark = new THREE.MeshStandardMaterial({
+  map:goldTex, color:0xa07808,
+  roughness:0.3, metalness:0.95,
+  emissive:0x180e00, emissiveIntensity:0.08
+});
+var whitePetalMat = new THREE.MeshStandardMaterial({
+  map:whiteTex, color:0xf8f4ec,
+  roughness:0.35, metalness:0.0,
+  emissive:0x181410, emissiveIntensity:0.12
+});
+var petalVeinMat = new THREE.MeshStandardMaterial({
+  color:0xd0ccc0, roughness:0.5, metalness:0.0
+});
+var greenSepalMat = new THREE.MeshStandardMaterial({
+  color:0x2a6a28, roughness:0.55, metalness:0.0,
+  emissive:0x082808, emissiveIntensity:0.2
+});
+var redHeartMat = new THREE.MeshStandardMaterial({
+  map:redTex, color:0xcc0010,
+  roughness:0.22, metalness:0.0,
+  emissive:0x880010, emissiveIntensity:0.45
+});
+var heartHighMat = new THREE.MeshStandardMaterial({
+  color:0xff7070, roughness:0.15, metalness:0.0,
+  emissive:0xff2020, emissiveIntensity:0.5
+});
+var blackCrossMat = new THREE.MeshStandardMaterial({
+  color:0x100e0c, roughness:0.55, metalness:0.05
+});
+var blueMat = new THREE.MeshStandardMaterial({
+  map:blueTex, color:0x4898d8,
+  roughness:0.3, metalness:0.0,
+  emissive:0x082840, emissiveIntensity:0.3
+});
+var chainMat = new THREE.MeshStandardMaterial({
+  map:goldTex, color:0xf0c828,
+  roughness:0.13, metalness:1.0,
+  emissive:0x4a2c00, emissiveIntensity:0.22
+});
+
+// ══════════════════════════════════════════════════════
+// LIGHTS
+// ══════════════════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x201808, 0.5));
+
+var keyL = new THREE.SpotLight(0xffe898, 95, 22, Math.PI/7, 0.28, 1.5);
+keyL.position.set(3, 6, 5);
+keyL.castShadow=true;
+keyL.shadow.mapSize.set(2048,2048);
+keyL.shadow.bias=-0.001;
+scene.add(keyL); scene.add(keyL.target);
+
+var fillL = new THREE.PointLight(0xff8830, 16, 14, 2);
+fillL.position.set(-5, 1, 3);
+scene.add(fillL);
+
+var rimL = new THREE.DirectionalLight(0xd0a020, 1.0);
+rimL.position.set(-2, 3, -7);
+scene.add(rimL);
+
+var topL = new THREE.PointLight(0xffd060, 12, 12, 2);
+topL.position.set(0, 6, 2);
+scene.add(topL);
+
+// ══════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════
+function cyl(rt,rb,h,seg,mat,px,py,pz,rx,rz){
+  px=px||0;py=py||0;pz=pz||0;rx=rx||0;rz=rz||0;
+  var m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat);
+  m.position.set(px,py,pz); m.rotation.x=rx; m.rotation.z=rz;
+  m.castShadow=true; m.receiveShadow=true; return m;
+}
+function box(w,h,d,mat,px,py,pz,rz){
+  px=px||0;py=py||0;pz=pz||0;rz=rz||0;
+  var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(px,py,pz); m.rotation.z=rz;
+  m.castShadow=true; m.receiveShadow=true; return m;
+}
+function sph(r,mat,px,py,pz){
+  px=px||0;py=py||0;pz=pz||0;
+  var m=new THREE.Mesh(new THREE.SphereGeometry(r,16,16),mat);
+  m.position.set(px,py,pz); m.castShadow=true; return m;
+}
+function tor(R,r,seg,tub,mat,px,py,pz){
+  px=px||0;py=py||0;pz=pz||0;
+  var m=new THREE.Mesh(new THREE.TorusGeometry(R,r,seg,tub),mat);
+  m.position.set(px,py,pz); m.rotation.x=Math.PI/2;
+  m.castShadow=true; return m;
+}
+
+// ══════════════════════════════════════════════════════
+// MEDALLION
+// ══════════════════════════════════════════════════════
+var med = new THREE.Group();
+scene.add(med);
+
+var T = 0.28;  // thickness
+var R = 2.05;  // outer radius
+
+// ── GOLD OUTER RING ───────────────────────────────────
+// Main gold disc
+med.add(cyl(R,R,T,80,goldMid,0,0,0,Math.PI/2,0));
+
+
+
+// Knurling around edge
+for(var k=0;k<56;k++){
+  var ka=k/56*Math.PI*2;
+  var km=box(0.035,0.22,T+0.03,goldDark,
+    Math.cos(ka)*R, Math.sin(ka)*R, 0, ka);
+  med.add(km);
+}
+
+// ── BLUE SKY DISC ─────────────────────────────────────
+med.add(cyl(1.78,1.78,0.06,72,blueMat,0,0,T/2+0.01,Math.PI/2,0));
+
+
+// ── WHITE ROSE – 5 OUTER PETALS ───────────────────────
+var petalGroup=new THREE.Group();
+petalGroup.position.z=T/2+0.07;
+med.add(petalGroup);
+
+for(var p=0;p<5;p++){
+  var pa=p/5*Math.PI*2 - Math.PI/2;
+  var pr=0.84;
+  var px2=Math.cos(pa)*pr, py2=Math.sin(pa)*pr;
+
+  // Main petal body – flattened ellipsoid
+  var pet=new THREE.Mesh(new THREE.SphereGeometry(0.56,22,16),whitePetalMat);
+  pet.scale.set(0.55,0.92,0.13);
+  pet.position.set(px2,py2,0);
+  pet.rotation.z=pa+Math.PI/2;
+  pet.castShadow=true;
+  petalGroup.add(pet);
+
+  // Petal central vein
+  var vein=new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.010,0.72,6),petalVeinMat);
+  vein.position.set(px2,py2,0.06);
+  vein.rotation.z=pa+Math.PI/2;
+  petalGroup.add(vein);
+
+  // Side veins (2 per petal)
+  [-0.18,0.18].forEach(function(vOff){
+    var svein=new THREE.Mesh(new THREE.CylinderGeometry(0.009,0.006,0.48,6),petalVeinMat);
+    svein.position.set(px2+Math.cos(pa+Math.PI/2)*vOff, py2+Math.sin(pa+Math.PI/2)*vOff, 0.055);
+    svein.rotation.z=pa+Math.PI/2+0.25*(vOff>0?1:-1);
+    petalGroup.add(svein);
+  });
+
+  // Petal tip rounded end
+  var ptip=sph(0.09,whitePetalMat,Math.cos(pa)*1.34,Math.sin(pa)*1.34,0.04);
+  petalGroup.add(ptip);
+
+  // Green sepal between petals
+  var sa=pa+Math.PI/5;
+  var sep=new THREE.Mesh(new THREE.SphereGeometry(0.19,12,8),greenSepalMat);
+  sep.scale.set(0.38,0.88,0.12);
+  sep.position.set(Math.cos(sa)*0.88,Math.sin(sa)*0.88,0);
+  sep.rotation.z=sa+Math.PI/2;
+  petalGroup.add(sep);
+  // Sepal tip
+  petalGroup.add(sph(0.07,greenSepalMat,Math.cos(sa)*1.2,Math.sin(sa)*1.2,-0.01));
+}
+
+
+// ── RED HEART ─────────────────────────────────────────
+var heartG=new THREE.Group();
+heartG.position.z=T/2+0.14;
+med.add(heartG);
+
+// FRONT CROSS (red)
+heartG.add(box(0.18,0.82,0.07,redHeartMat,0,0,0));
+heartG.add(box(0.60,0.18,0.07,redHeartMat,0,0.12,0));
+// Cross highlight edges
+heartG.add(box(0.025,0.84,0.04,heartHighMat,-0.1,0,0.04));
+heartG.add(box(0.025,0.84,0.04,heartHighMat, 0.1,0,0.04));
+heartG.add(box(0.62,0.025,0.04,heartHighMat,0, 0.21,0.04));
+heartG.add(box(0.62,0.025,0.04,heartHighMat,0, 0.03,0.04));
+
+// ── BLACK CROSS ───────────────────────────────────────
+var crossG=new THREE.Group();
+crossG.position.z=T/2+0.22;
+med.add(crossG);
+
+// Vertical bar
+crossG.add(box(0.17,0.78,0.07,blackCrossMat,0,0,0));
+// Horizontal bar
+crossG.add(box(0.56,0.17,0.07,blackCrossMat,0,0.1,0));
+
+// Cross edge detail
+crossG.add(box(0.025,0.80,0.04,goldDark,-0.094,0,0.03));
+crossG.add(box(0.025,0.80,0.04,goldDark, 0.094,0,0.03));
+crossG.add(box(0.58,0.025,0.04,goldDark,0, 0.192,0.03));
+crossG.add(box(0.58,0.025,0.04,goldDark,0, 0.008,0.03));
+
+
+// ── BACK FACE ─────────────────────────────────────────
+med.add(cyl(R-0.01,R-0.01,0.025,80,goldDark,0,0,-T/2-0.01,Math.PI/2,0));
+
+// BACK CROSS (black, same proportions as front)
+med.add(box(0.18,0.82,0.04,blackCrossMat,0,0,-T/2-0.025));
+med.add(box(0.60,0.18,0.04,blackCrossMat,0,0.12,-T/2-0.025));
+// Back cross gold edges
+med.add(box(0.025,0.84,0.03,goldDark,-0.1,0,-T/2-0.032));
+med.add(box(0.025,0.84,0.03,goldDark, 0.1,0,-T/2-0.032));
+med.add(box(0.62,0.025,0.03,goldDark,0, 0.21,-T/2-0.032));
+med.add(box(0.62,0.025,0.03,goldDark,0, 0.03,-T/2-0.032));
+
+// ── BAIL (top loop) ───────────────────────────────────
+var bail=new THREE.Group();
+bail.position.set(0, R+0.15, 0);
+med.add(bail);
+
+var bailRing=new THREE.Mesh(new THREE.TorusGeometry(0.26,0.09,14,28),goldBright);
+bail.add(bailRing);
+
+var bailPost=new THREE.Mesh(new THREE.CylinderGeometry(0.115,0.115,0.35,14),goldBright);
+bailPost.position.y=-0.3;
+bail.add(bailPost);
+
+var bailCap=sph(0.14,goldBright,0,-0.48,0);
+bail.add(bailCap);
+
+// Bail decorative band
+var bDec=new THREE.Mesh(new THREE.TorusGeometry(0.13,0.04,8,20),goldMid);
+bDec.position.set(0,-0.15,0); bDec.rotation.x=Math.PI/2;
+bail.add(bDec);
+
+// ── SNAKE CHAIN ───────────────────────────────────────
+// Snake chain = continuous cylinder with slight undulation
+var chainG=new THREE.Group();
+med.add(chainG);
+
+var nSeg=80;
+var chainPoints=[];
+for(var s=0;s<=nSeg;s++){
+  var st=s/nSeg;
+  var lt=(st-0.5)*2; // -1 to 1
+  var cx2=lt*2.2;
+  // catenary: y = a*cosh(x/a) - a, here approx
+  var cy2=R+0.66+lt*lt*1.1;
+  chainPoints.push(new THREE.Vector3(cx2,cy2,0));
+}
+
+var chainCurve=new THREE.CatmullRomCurve3(chainPoints);
+var chainGeo=new THREE.TubeGeometry(chainCurve,nSeg,0.065,10,false);
+var chainMesh=new THREE.Mesh(chainGeo,chainMat);
+chainMesh.castShadow=true;
+chainG.add(chainMesh);
+
+// Snake chain segments (scale texture)
+for(var sl=0;sl<nSeg;sl+=2){
+  var slt=(sl/nSeg-0.5)*2;
+  var slx=slt*2.2;
+  var sly=R+0.66+slt*slt*1.1;
+  var ring2=new THREE.Mesh(new THREE.TorusGeometry(0.068,0.018,6,12),goldBright);
+  ring2.position.set(slx,sly,0);
+  // orient perpendicular to chain direction
+  var dlt2=((sl+1)/nSeg-0.5)*2;
+  var dlx2=dlt2*2.2;
+  var dly2=R+0.66+dlt2*dlt2*1.1;
+  var dir2=new THREE.Vector3(dlx2-slx,dly2-sly,0).normalize();
+  ring2.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir2);
+  chainG.add(ring2);
+}
+
+// Chain end clasps
+[-1,1].forEach(function(side){
+  var ex=side*2.2, ey=R+0.66+1.1;
+  chainG.add(sph(0.09,goldBright,ex,ey,0));
+  chainG.add(cyl(0.05,0.05,0.15,8,goldBright,ex,ey+0.1,0));
+});
+
+// ══════════════════════════════════════════════════════
+// DUST
+// ══════════════════════════════════════════════════════
+var DC=100;
+var dG2=new THREE.BufferGeometry();
+var dP=new Float32Array(DC*3);
+var dV=[];
+for(var i=0;i<DC;i++){
+  dP[i*3]=(Math.random()-0.5)*12; dP[i*3+1]=(Math.random()-0.5)*10;
+  dP[i*3+2]=(Math.random()-0.5)*7;
+  dV.push({vx:(Math.random()-0.5)*0.003,vy:0.001+Math.random()*0.003,vz:(Math.random()-0.5)*0.002});
+}
+dG2.setAttribute('position',new THREE.BufferAttribute(dP,3));
+scene.add(new THREE.Points(dG2,new THREE.PointsMaterial({
+  color:0xd4a030,size:0.028,transparent:true,opacity:0.35,sizeAttenuation:true})));
+
+// ══════════════════════════════════════════════════════
+// ANIMATION
+// ══════════════════════════════════════════════════════
+var phase='appear',elapsed=0,rotsDone=0,accum=0;
+med.scale.set(0,0,0);
+med.position.z=-7;
+var clock=new THREE.Clock();
+
+function animate(){
+  requestAnimationFrame(animate);
+  var dt=Math.min(clock.getDelta(),0.05);
+  elapsed+=dt;
+
+  fillL.intensity=14+Math.sin(elapsed*6.1)*2.5+Math.sin(elapsed*13.4)*1;
+  topL.intensity =11+Math.sin(elapsed*4.3+0.8)*2;
+  keyL.intensity =88+Math.sin(elapsed*5.1+0.3)*7;
+
+  for(var i=0;i<DC;i++){
+    dP[i*3]+=dV[i].vx; dP[i*3+1]+=dV[i].vy; dP[i*3+2]+=dV[i].vz;
+    if(dP[i*3+1]>6){dP[i*3+1]=-4;dP[i*3]=(Math.random()-0.5)*12;}
+  }
+  dG2.attributes.position.needsUpdate=true;
+
+  if(phase==='appear'){
+    var t=Math.min(elapsed/1.8,1);
+    var e=t<0.75?4*t*t*t:1-(Math.pow(-2*t+2,3)/2);
+    var s=e+(t>0.85?Math.sin((t-0.85)/0.15*Math.PI)*0.065:0);
+    s=Math.min(s,1.06);
+    med.scale.set(s,s,s);
+    med.position.z=-7*(1-e)*(1-e);
+    med.rotation.y=-1.5*(1-e);
+    if(elapsed>2.2){phase='wait';elapsed=0;}
+  }
+  else if(phase==='wait'){
+    med.scale.set(1,1,1); med.position.z=0;
+    med.position.y=Math.sin(elapsed*1.2)*0.025;
+    if(elapsed>0.9){phase='rotate';elapsed=0;rotsDone=0;accum=0;}
+  }
+  else if(phase==='rotate'){
+    var spd=2.7;
+    med.rotation.y=accum+Math.min(elapsed/spd,1)*Math.PI*2;
+    med.position.y=Math.sin(elapsed*1.5)*0.02;
+    if(elapsed>=spd){
+      accum+=Math.PI*2; elapsed=0; rotsDone++;
+      if(rotsDone>=3){phase='idle';med.rotation.y=0;elapsed=0;}
+    }
+  }
+  else{
+    med.position.y=Math.sin(elapsed*0.85)*0.08;
+    med.rotation.y+=0.004;
+    med.rotation.x=Math.sin(elapsed*0.38)*0.06;
+  }
+
+  renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener('resize',function(){
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>

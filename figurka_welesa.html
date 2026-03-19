@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Figurka Słowiańska</title>
+<style>
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  body{background:#080502;width:100vw;height:100vh;overflow:hidden;
+    font-family:'Palatino Linotype','Book Antiqua',Palatino,serif;cursor:crosshair}
+  canvas{display:block;position:fixed;inset:0}
+  #vignette{position:fixed;inset:0;pointer-events:none;z-index:8;
+    background:radial-gradient(ellipse at 50% 50%,transparent 35%,rgba(0,0,0,.84) 100%)}
+  #grain{position:fixed;inset:0;pointer-events:none;z-index:9;opacity:.026;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.88' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size:140px;animation:gs .12s steps(1) infinite}
+  @keyframes gs{0%{transform:translate(0,0)}25%{transform:translate(-2px,2px)}50%{transform:translate(2px,-1px)}75%{transform:translate(-1px,3px)}}
+  #title{position:fixed;top:24px;left:50%;transform:translateX(-50%);
+    color:#c88840;font-size:clamp(11px,1.0vw,14px);letter-spacing:9px;text-transform:uppercase;
+    text-shadow:0 0 40px #a06020aa;white-space:nowrap;opacity:0;
+    animation:fi 3s ease 1.5s forwards;pointer-events:none;z-index:12}
+  #subtitle{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);
+    color:#5a3810;font-size:clamp(7px,.60vw,9px);letter-spacing:5px;text-transform:uppercase;
+    white-space:nowrap;opacity:0;animation:fi 2s ease 4s forwards;pointer-events:none;z-index:12}
+  #hint{position:fixed;bottom:50px;left:50%;transform:translateX(-50%);
+    color:#3a2008;font-size:clamp(7px,.58vw,8px);letter-spacing:4px;text-transform:uppercase;
+    white-space:nowrap;opacity:0;animation:fi 2s ease 5s forwards,fo 2s ease 9s forwards;
+    pointer-events:none;z-index:12}
+  @keyframes fi{to{opacity:1}} @keyframes fo{to{opacity:0}}
+</style>
+</head>
+<body>
+<div id="grain"></div>
+<div id="vignette"></div>
+<div id="title">⊕ &nbsp; F I G U R K A &nbsp; S Ł O W I A Ń S K A &nbsp; ⊕</div>
+<div id="subtitle">RZEŹBA W DREWNIE DĘBOWYM · WCZESNE ŚREDNIOWIECZE</div>
+<div id="hint">PRZECIĄGNIJ ABY OBRÓCIĆ</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+// ── Renderer ──────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+renderer.toneMapping       = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x080502);
+scene.fog = new THREE.FogExp2(0x0a0603,0.042);
+
+const camera = new THREE.PerspectiveCamera(38,innerWidth/innerHeight,0.01,60);
+camera.position.set(0,3.8,12);
+camera.lookAt(0,3.8,0);
+
+// ── Wood texture ──────────────────────────────────────────────────────
+function makeWoodTex(){
+  const c=document.createElement('canvas'); c.width=512; c.height=1024;
+  const ctx=c.getContext('2d');
+  const g=ctx.createLinearGradient(0,0,0,1024);
+  g.addColorStop(0,'#9a6030'); g.addColorStop(.4,'#7a4820');
+  g.addColorStop(.8,'#5e3412'); g.addColorStop(1,'#4a2a0a');
+  ctx.fillStyle=g; ctx.fillRect(0,0,512,1024);
+  for(let i=0;i<100;i++){
+    let px=Math.random()*512; ctx.beginPath(); ctx.moveTo(px,0);
+    for(let y=0;y<1024;y+=24){px+=(Math.random()-.5)*8; ctx.lineTo(px,y);}
+    ctx.strokeStyle=`rgba(${22+Math.random()*22},${12+Math.random()*12},${3+Math.random()*6},${.20+Math.random()*.30})`;
+    ctx.lineWidth=.4+Math.random()*1.6; ctx.stroke();
+  }
+  for(let i=0;i<180;i++){
+    ctx.beginPath(); ctx.arc(Math.random()*512,Math.random()*1024,1+Math.random()*7,0,Math.PI*2);
+    ctx.fillStyle=`rgba(16,8,2,${.05+Math.random()*.12})`; ctx.fill();
+  }
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(1,2);
+  return t;
+}
+const wTex=makeWoodTex();
+
+const mBase  = new THREE.MeshStandardMaterial({map:wTex,color:0x8a5828,roughness:.90,metalness:0});
+const mMid   = new THREE.MeshStandardMaterial({map:wTex,color:0x6a3e14,roughness:.94,metalness:0});
+const mDark  = new THREE.MeshStandardMaterial({map:wTex,color:0x3e2208,roughness:.97,metalness:0});
+const mCarve = new THREE.MeshStandardMaterial({map:wTex,color:0x221206,roughness:.99,metalness:0});
+const mLight = new THREE.MeshStandardMaterial({map:wTex,color:0xb07838,roughness:.84,metalness:0});
+
+// ── Lights ────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x402010,.55));
+const key=new THREE.DirectionalLight(0xffd898,2.8);
+key.position.set(4,10,8); key.castShadow=true;
+key.shadow.mapSize.set(2048,2048);
+key.shadow.camera.left=-4; key.shadow.camera.right=4;
+key.shadow.camera.top=12; key.shadow.camera.bottom=-1;
+key.shadow.camera.near=.5; key.shadow.camera.far=28;
+key.shadow.bias=-.0005; scene.add(key);
+const fill=new THREE.DirectionalLight(0xc08040,.65);
+fill.position.set(-5,5,5); scene.add(fill);
+const rim=new THREE.DirectionalLight(0x7080a0,.28);
+rim.position.set(0,4,-7); scene.add(rim);
+const bounce=new THREE.PointLight(0xb06820,3.5,7,2);
+bounce.position.set(0,-.5,3); scene.add(bounce);
+
+// ── Helpers ───────────────────────────────────────────────────────────
+function mk(geo,mat,{x=0,y=0,z=0,rx=0,ry=0,rz=0}={}){
+  const m=new THREE.Mesh(geo,mat);
+  m.position.set(x,y,z); m.rotation.set(rx,ry,rz);
+  m.castShadow=true; m.receiveShadow=true; return m;
+}
+// SOLID cylinder — CylinderGeometry is always closed/solid
+function cyl(rt,rb,h,s,mat,opts={}){
+  return mk(new THREE.CylinderGeometry(rt,rb,h,s,1,false),mat,opts);
+}
+// SOLID box
+function box(w,h,d,mat,opts={}){return mk(new THREE.BoxGeometry(w,h,d),mat,opts);}
+// Torus (for carved rings, wheel)
+function tor(R,r,ns,nt,mat,opts={}){return mk(new THREE.TorusGeometry(R,r,ns,nt),mat,opts);}
+// Sphere (solid by default)
+function sph(r,s,mat,opts={}){return mk(new THREE.SphereGeometry(r,s,Math.ceil(s*.6)),mat,opts);}
+
+// ══════════════════════════════════════════════════════════════════════
+// FIGURINE  — all solid geometries, stacked
+// Strategy: body = stack of cylinders at different radii + heights
+//           head = box (4-sided box for square face)
+//           all caps closed (CylinderGeometry default)
+// ══════════════════════════════════════════════════════════════════════
+const idol = new THREE.Group();
+
+// Height layout:
+//  y=0.00  → bottom of figure (no base/plinth)
+//  y=0.00→4.40  body
+//  y=4.40→4.80  neck
+//  y=4.80→6.40  head box
+//  y=6.40→7.05  helmet cap
+
+// ── BODY — stack of solid cylinders, slightly tapered ─────────────────
+// Each cyl positioned at its centre.  Bottom at y=0.
+const bodySegs = [
+  // [radiusTop, radiusBot, height, yBottom, segments]
+  [0.62, 0.66, 0.40,  0.00, 20],   // very base — slightly wider
+  [0.60, 0.62, 0.80,  0.40, 20],
+  [0.58, 0.60, 0.80,  1.20, 20],
+  [0.56, 0.58, 0.80,  2.00, 20],
+  [0.55, 0.56, 0.70,  2.80, 20],
+  [0.56, 0.55, 0.30,  3.50, 20],   // slight shoulder flare
+  [0.54, 0.56, 0.30,  3.80, 20],
+  [0.50, 0.54, 0.30,  4.10, 20],
+];
+bodySegs.forEach(([rt,rb,h,yb,s])=>{
+  idol.add(cyl(rt,rb,h,s,mBase,{y:yb+h/2}));
+});
+
+// ── NECK ──────────────────────────────────────────────────────────────
+idol.add(cyl(0.34,0.50,0.40,16,mBase,{y:4.40+0.20}));
+
+// ── HEAD — solid BoxGeometry (square cross-section, like photo) ────────
+// A box is inherently solid and has no hollow
+const HEAD_W=1.04, HEAD_D=1.00, HEAD_H=1.60, HEAD_Y=4.80;
+idol.add(box(HEAD_W,HEAD_H,HEAD_D,mBase,{y:HEAD_Y+HEAD_H/2}));
+// Taper top of head slightly — small box slightly inset
+idol.add(box(HEAD_W*.85,0.20,HEAD_D*.85,mMid,{y:HEAD_Y+HEAD_H+0.10}));
+
+// ── HELMET CAP — solid half-sphere + cylinder ─────────────────────────
+const CAP_Y=HEAD_Y+HEAD_H+0.20;
+// cylinder crown
+idol.add(cyl(0.45,HEAD_W*.42,0.30,20,mDark,{y:CAP_Y+0.15}));
+// dome top
+idol.add(mk(new THREE.SphereGeometry(0.45,20,10,0,Math.PI*2,0,Math.PI/2),mDark,{y:CAP_Y+0.30}));
+// Helmet brim ring
+idol.add(tor(0.50,0.030,7,24,mCarve,{y:CAP_Y,rx:Math.PI/2}));
+
+// ── FACE FEATURES (all solid boxes/spheres projecting from head face) ──
+const FZ = HEAD_Y+HEAD_H/2;  // face centre y
+const FaceZ = HEAD_D/2;       // face front z
+
+// Brow ridge
+idol.add(box(HEAD_W*.88,0.11,0.12,mDark,{y:FZ+0.42,z:FaceZ+0.04}));
+
+// Eye sockets (slight indentation = dark colour box flush with face)
+for(const ex of [-.22,.22]){
+  idol.add(box(0.20,0.16,0.06,mCarve,{x:ex,y:FZ+0.28,z:FaceZ+0.02}));
+  idol.add(box(0.22,0.05,0.05,mLight,{x:ex,y:FZ+0.37,z:FaceZ+0.02}));
+}
+
+// NOSE — large, protruding solid box
+idol.add(box(0.26,0.44,0.28,mMid,{y:FZ+0.06,z:FaceZ+0.14}));
+// Nose top chamfer
+idol.add(box(0.22,0.08,0.12,mLight,{y:FZ+0.30,z:FaceZ+0.18,rx:.25}));
+// Nostril base
+idol.add(box(0.32,0.06,0.12,mDark,{y:FZ-.18,z:FaceZ+0.12}));
+
+// MOUSTACHE — centre bar + drooping sides
+idol.add(box(0.34,0.10,0.14,mDark,{y:FZ-.26,z:FaceZ+0.10}));
+for(let i=0;i<3;i++){
+  const t=i/2;
+  idol.add(box(0.11,0.12,0.12,mDark,{x:-(0.23+t*.12),y:FZ-.28-t*.10,z:FaceZ+.08,rz: .15+t*.15}));
+  idol.add(box(0.11,0.12,0.12,mDark,{x: (0.23+t*.12),y:FZ-.28-t*.10,z:FaceZ+.08,rz:-.15-t*.15}));
+}
+
+// Mouth incision
+idol.add(box(0.34,0.025,0.07,mCarve,{y:FZ-.42,z:FaceZ+0.08}));
+
+// Chin
+idol.add(box(0.36,0.16,0.16,mMid,{y:FZ-.54,z:FaceZ+0.06}));
+
+// ── SOLAR WHEEL on chest (carved grooves) ─────────────────────────────
+const WY=2.00, WZ=0.56+0.02, WR=0.30;
+// Outer ring
+idol.add(tor(WR,0.028,7,36,mCarve,{y:WY,z:WZ,rx:Math.PI/2}));
+// Inner ring
+idol.add(tor(WR*.48,0.018,6,24,mCarve,{y:WY,z:WZ,rx:Math.PI/2}));
+// Centre hub
+idol.add(cyl(0.052,0.052,0.032,10,mCarve,{y:WY,z:WZ,rx:Math.PI/2}));
+// 6 spokes
+for(let i=0;i<6;i++){
+  const a=i/6*Math.PI*2;
+  idol.add(box(0.028,WR*.88,0.028,mCarve,
+    {x:Math.cos(a)*WR*.26,y:WY+Math.sin(a)*WR*.26,z:WZ,rz:a}));
+}
+
+// ── HORIZONTAL CARVED BANDS on body ───────────────────────────────────
+for(const by of [.38,.78,1.18,3.48,4.08]){
+  idol.add(tor(.60,0.014,6,22,mCarve,{y:by,rx:Math.PI/2}));
+}
+
+// ── ARM RIDGES — barely raised strips on body sides ───────────────────
+for(const sx of [-1,1]){
+  idol.add(box(0.05,1.10,0.07,mDark,{x:sx*.60,y:3.10,z:.04}));
+}
+
+// ── Shadow + glow on floor ────────────────────────────────────────────
+const shadowPlane=new THREE.Mesh(new THREE.CircleGeometry(3,32),new THREE.ShadowMaterial({opacity:.5}));
+shadowPlane.rotation.x=-Math.PI/2; shadowPlane.position.y=-.005; shadowPlane.receiveShadow=true;
+scene.add(shadowPlane);
+scene.add(mk(new THREE.CircleGeometry(1.2,28),
+  new THREE.MeshStandardMaterial({color:0x6a3808,roughness:1,emissive:0x4a2808,emissiveIntensity:.28,transparent:true,opacity:.45}),
+  {y:.004,rx:-Math.PI/2}));
+
+scene.add(idol);
+
+// ── Dust motes ────────────────────────────────────────────────────────
+const dustGeo=new THREE.BufferGeometry();
+const DN=80;
+const dP=new Float32Array(DN*3);
+const dV=[];
+for(let i=0;i<DN;i++){
+  const a=Math.random()*Math.PI*2,r=.8+Math.random()*3.5;
+  dP[i*3]=Math.cos(a)*r; dP[i*3+1]=Math.random()*9; dP[i*3+2]=Math.sin(a)*r;
+  dV.push({x:(Math.random()-.5)*.002,y:.003+Math.random()*.004,z:(Math.random()-.5)*.002});
+}
+dustGeo.setAttribute('position',new THREE.BufferAttribute(dP,3));
+const dust=new THREE.Points(dustGeo,new THREE.PointsMaterial(
+  {color:0xc08030,size:.022,transparent:true,opacity:.22,sizeAttenuation:true}));
+scene.add(dust);
+
+// ── Camera drag ───────────────────────────────────────────────────────
+let pDown=false,lx=0,ly=0,rotY=0,rotX=0;
+const rxMin=-.35,rxMax=.35;
+renderer.domElement.addEventListener('pointerdown',e=>{pDown=true;lx=e.clientX;ly=e.clientY;});
+window.addEventListener('pointerup',()=>pDown=false);
+window.addEventListener('pointermove',e=>{
+  if(!pDown)return;
+  rotY-=(e.clientX-lx)*.007; rotX-=(e.clientY-ly)*.005;
+  rotX=Math.max(rxMin,Math.min(rxMax,rotX)); lx=e.clientX; ly=e.clientY;
+});
+renderer.domElement.addEventListener('touchstart',e=>{pDown=true;lx=e.touches[0].clientX;ly=e.touches[0].clientY;},{passive:true});
+window.addEventListener('touchend',()=>pDown=false);
+window.addEventListener('touchmove',e=>{
+  if(!pDown)return;
+  rotY-=(e.touches[0].clientX-lx)*.007; rotX-=(e.touches[0].clientY-ly)*.005;
+  rotX=Math.max(rxMin,Math.min(rxMax,rotX)); lx=e.touches[0].clientX; ly=e.touches[0].clientY;
+},{passive:true});
+
+// ── Appear ────────────────────────────────────────────────────────────
+idol.scale.setScalar(0); idol.position.y=-5;
+const ov=document.createElement('div');
+Object.assign(ov.style,{position:'fixed',inset:'0',background:'#000',zIndex:'20',
+  pointerEvents:'none',transition:'opacity 1.3s ease',opacity:'1'});
+document.body.appendChild(ov);
+setTimeout(()=>ov.style.opacity='0',350);
+setTimeout(()=>ov.remove(),1800);
+
+let appeared=false,appT=0,autoR=0;
+
+// ── Render ────────────────────────────────────────────────────────────
+const clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),.05);
+
+  if(!appeared){
+    appT+=dt;
+    const tN=Math.min(appT/2.5,1);
+    const e=1-Math.pow(1-tN,3);
+    const b=tN>.84?Math.sin((tN-.84)/.16*Math.PI)*.038:0;
+    idol.scale.setScalar(Math.min(e+b,1.02));
+    idol.position.y=-5*(1-e)*(1-e);
+    if(appT>2.9){appeared=true;idol.scale.setScalar(1);idol.position.y=0;}
+  }
+
+  autoR+=dt*(pDown?0:.20);
+  idol.rotation.y=autoR+rotY;
+  idol.rotation.x=rotX;
+
+  for(let i=0;i<DN;i++){
+    dP[i*3]+=dV[i].x; dP[i*3+1]+=dV[i].y; dP[i*3+2]+=dV[i].z;
+    if(dP[i*3+1]>9){
+      const a=Math.random()*Math.PI*2,r=.8+Math.random()*3.5;
+      dP[i*3]=Math.cos(a)*r; dP[i*3+1]=-.2; dP[i*3+2]=Math.sin(a)*r;
+    }
+  }
+  dustGeo.attributes.position.needsUpdate=true;
+
+  renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>

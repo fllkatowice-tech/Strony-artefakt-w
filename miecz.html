@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Miecz Średniowieczny</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;overflow:hidden;}
+canvas{display:block;}
+#label{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);color:#6a5830;font-family:Georgia,serif;font-size:12px;letter-spacing:.22em;text-transform:uppercase;pointer-events:none;opacity:.6;}
+</style>
+</head>
+<body>
+<div id="label">Miecz · XIV wiek</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+var W=window.innerWidth,H=window.innerHeight;
+var renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(W,H);renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=.88;
+document.body.appendChild(renderer.domElement);
+
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x060504);
+scene.fog=new THREE.Fog(0x060504,18,32);
+
+var camera=new THREE.PerspectiveCamera(46,W/H,.05,60);
+window.addEventListener('resize',function(){W=window.innerWidth;H=window.innerHeight;renderer.setSize(W,H);camera.aspect=W/H;camera.updateProjectionMatrix();});
+
+// ── Orbit ──
+var orbit={theta:.42,phi:1.2,r:7.5};
+var tgt=new THREE.Vector3(0,1.2,0);
+var drag={on:false,lx:0,ly:0};var auto=true;
+renderer.domElement.addEventListener('mousedown',function(e){drag.on=true;drag.lx=e.clientX;drag.ly=e.clientY;auto=false;});
+window.addEventListener('mouseup',function(){drag.on=false;});
+window.addEventListener('mousemove',function(e){if(!drag.on)return;orbit.theta-=(e.clientX-drag.lx)*.008;orbit.phi=Math.max(.05,Math.min(1.55,orbit.phi+(e.clientY-drag.ly)*.005));drag.lx=e.clientX;drag.ly=e.clientY;});
+renderer.domElement.addEventListener('wheel',function(e){if(e.deltaY<0)orbit.r=Math.max(.8,orbit.r+e.deltaY*.014);});
+renderer.domElement.addEventListener('touchstart',function(e){drag.on=true;drag.lx=e.touches[0].clientX;drag.ly=e.touches[0].clientY;auto=false;},{passive:true});
+window.addEventListener('touchend',function(){drag.on=false;});
+window.addEventListener('touchmove',function(e){if(!drag.on)return;orbit.theta-=(e.touches[0].clientX-drag.lx)*.008;orbit.phi=Math.max(.05,Math.min(1.55,orbit.phi+(e.touches[0].clientY-drag.ly)*.005));drag.lx=e.touches[0].clientX;drag.ly=e.touches[0].clientY;},{passive:true});
+
+// ════ TEXTURES ════
+function mkSteel(w,h){
+  var c=document.createElement('canvas');c.width=w;c.height=h;var x=c.getContext('2d');
+  var g=x.createLinearGradient(0,0,w,0);
+  g.addColorStop(0,'hsl(210,8%,7%)');g.addColorStop(.28,'hsl(210,6%,20%)');
+  g.addColorStop(.5,'hsl(210,5%,36%)');g.addColorStop(.72,'hsl(210,6%,20%)');g.addColorStop(1,'hsl(210,8%,7%)');
+  x.fillStyle=g;x.fillRect(0,0,w,h);
+  for(var i=0;i<h;i+=1.5){if(Math.random()>.5)continue;x.beginPath();x.moveTo(0,i);x.lineTo(w,i+(Math.random()-.5)*.4);x.strokeStyle='rgba(255,255,255,'+(0.01+Math.random()*.04)+')';x.lineWidth=.3;x.stroke();}
+  for(var s=0;s<60;s++){x.beginPath();var sx=Math.random()*w,sy=Math.random()*h;x.moveTo(sx,sy);x.lineTo(sx+(Math.random()-.5)*9,sy+(Math.random()-.5)*1.5);x.strokeStyle='rgba(0,0,0,'+(0.05+Math.random()*.1)+')';x.lineWidth=.4;x.stroke();}
+  x.fillStyle='rgba(255,255,255,.07)';x.fillRect(w*.46,0,w*.08,h);
+  return new THREE.CanvasTexture(c);
+}
+function mkLeather(w,h){
+  var c=document.createElement('canvas');c.width=w;c.height=h;var x=c.getContext('2d');
+  x.fillStyle='hsl(15,32%,9%)';x.fillRect(0,0,w,h);
+  for(var i=0;i<h*2;i+=5){x.beginPath();x.moveTo(0,i);x.lineTo(w,i-w);x.strokeStyle='rgba(0,0,0,'+(0.06+Math.random()*.08)+')';x.lineWidth=1.4;x.stroke();}
+  for(var j=0;j<h*2;j+=5){x.beginPath();x.moveTo(0,j);x.lineTo(w,j+w);x.strokeStyle='rgba(255,255,255,'+(0.015+Math.random()*.02)+')';x.lineWidth=.4;x.stroke();}
+  return new THREE.CanvasTexture(c);
+}
+function mkGold(w,h){
+  var c=document.createElement('canvas');c.width=w;c.height=h;var x=c.getContext('2d');
+  var g=x.createLinearGradient(0,0,w,h);
+  g.addColorStop(0,'hsl(42,52%,16%)');g.addColorStop(.4,'hsl(43,62%,42%)');g.addColorStop(.5,'hsl(44,68%,55%)');g.addColorStop(.6,'hsl(43,62%,42%)');g.addColorStop(1,'hsl(42,52%,16%)');
+  x.fillStyle=g;x.fillRect(0,0,w,h);
+  for(var k=0;k<150;k++){x.beginPath();x.arc(Math.random()*w,Math.random()*h,.3+Math.random()*.9,0,Math.PI*2);x.fillStyle='rgba(0,0,0,'+(0.02+Math.random()*.07)+')';x.fill();}
+  return new THREE.CanvasTexture(c);
+}
+
+var STEEL=mkSteel(128,512);STEEL.wrapS=STEEL.wrapT=THREE.RepeatWrapping;
+var LEATHER=mkLeather(128,256);LEATHER.wrapS=LEATHER.wrapT=THREE.RepeatWrapping;LEATHER.repeat.set(1,5);
+var GOLD=mkGold(128,128);
+
+function mSteel(){return new THREE.MeshStandardMaterial({map:STEEL,roughness:.22,metalness:.94,color:0xd0d8e8});}
+function mSteelDark(){return new THREE.MeshStandardMaterial({color:0x181c22,roughness:.28,metalness:.9});}
+function mLeather(){return new THREE.MeshStandardMaterial({map:LEATHER,roughness:.97,metalness:0,color:0x3a1c0e});}
+
+// ════ SWORD GROUP ════
+var sword=new THREE.Group();
+scene.add(sword);
+
+// ════ BLADE — lenticular cross-section with fuller ════
+var bladeL=2.8;
+var bladeSegs=80;
+var bVerts=[],bIdx=[],bUV=[];
+var ringSize=10; // verts per ring
+
+for(var si=0;si<=bladeSegs;si++){
+  var t=si/bladeSegs;
+  var y=t*bladeL;
+  var w=.18*(1-t*.97);
+  var tk=.068*(1-t*.88);
+  var fw=.026*(1-t*.9);   // fuller half-width
+  var fd=.009*(1-t*.88);  // fuller depth inset
+
+  // 10 verts: left-edge, left-shoulder, left-fuller-outer, left-fuller-inner, spine-top,
+  //           spine-bot, right-fuller-inner, right-fuller-outer, right-shoulder, right-edge
+  var ring=[
+    [-w,    y, 0        ],  // 0 left edge
+    [-fw,   y, tk*.7    ],  // 1 left face shoulder (front)
+    [-fw,   y, tk-fd    ],  // 2 left fuller outer
+    [ 0,    y, tk       ],  // 3 spine front
+    [ fw,   y, tk-fd    ],  // 4 right fuller outer
+    [ fw,   y, tk*.7    ],  // 5 right face shoulder
+    [ w,    y, 0        ],  // 6 right edge
+    [ fw,   y,-(tk*.7)  ],  // 7 right face shoulder back
+    [ 0,    y,-tk       ],  // 8 spine back
+    [-fw,   y,-(tk*.7)  ],  // 9 left face shoulder back
+  ];
+  for(var ri=0;ri<ring.length;ri++){
+    bVerts.push(ring[ri][0],ring[ri][1],ring[ri][2]);
+    bUV.push(ri/(ring.length-1),t);
+  }
+}
+for(var si2=0;si2<bladeSegs;si2++){
+  var base=si2*ringSize, next=(si2+1)*ringSize;
+  for(var ri2=0;ri2<ringSize-1;ri2++){
+    bIdx.push(base+ri2,next+ri2,next+ri2+1, base+ri2,next+ri2+1,base+ri2+1);
+  }
+  bIdx.push(base+ringSize-1,next+ringSize-1,next+0, base+ringSize-1,next+0,base+0);
+}
+var bladeGeo=new THREE.BufferGeometry();
+bladeGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(bVerts),3));
+bladeGeo.setAttribute('uv',new THREE.BufferAttribute(new Float32Array(bUV),2));
+bladeGeo.setIndex(bIdx);bladeGeo.computeVertexNormals();
+var bladeMesh=new THREE.Mesh(bladeGeo,mSteel());bladeMesh.castShadow=true;sword.add(bladeMesh);
+
+// Fuller recessed groove (darkened strip)
+var fVerts2=[],fIdx2=[],fSegs2=70;
+for(var fi=0;fi<=fSegs2;fi++){
+  var ft=fi/fSegs2, fy=ft*bladeL*.85+.15;
+  var fw2=.024*(1-ft*.82), ftk2=.032*(1-ft*.82);
+  fVerts2.push(-fw2,fy,ftk2, fw2,fy,ftk2, fw2,fy,-ftk2, -fw2,fy,-ftk2);
+}
+for(var fi2=0;fi2<fSegs2;fi2++){
+  var fb=fi2*4,fn=fi2*4+4;
+  fIdx2.push(fb,fn,fn+1,fb,fn+1,fb+1, fb+2,fn+2,fn+3,fb+2,fn+3,fb+3, fb+1,fn+1,fn+2,fb+1,fn+2,fb+2);
+}
+var fullerGeo=new THREE.BufferGeometry();
+fullerGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(fVerts2),3));
+fullerGeo.setIndex(fIdx2);fullerGeo.computeVertexNormals();
+sword.add(new THREE.Mesh(fullerGeo,mSteelDark()));
+
+// Blade tip
+var tipG=new THREE.ConeGeometry(.004,.14,8);tipG.rotateX(Math.PI/2);
+var tipM=new THREE.Mesh(tipG,mSteel());tipM.position.set(0,bladeL+.07,0);sword.add(tipM);
+
+// Ricasso (unsharpened base ~4cm)
+var ricG=new THREE.BoxGeometry(.142,.22,.072);
+var ricM=new THREE.Mesh(ricG,mSteel());ricM.position.set(0,.11,0);sword.add(ricM);
+
+// ════ CROSSGUARD (jelec) ════
+// ════ CROSSGUARD — wczesnośredniowieczny, karoliński ════
+// Masywny prosty jelec z lekko rozszerzanymi końcami (typ D/E wg Oakeshotta)
+// Długość ~1.0, prostokątny przekrój, końce zaokrąglone i nieco szersze
+var guardTotalL=1.02;
+var guardH=.072, guardDepth=.048;
+
+// Budujemy jelec jako custom geometry: prosty pręt o prostokątnym przekroju
+// ze stopniowym rozszerzeniem ku końcom
+var gjVerts=[], gjIdx=[], gjSegs=40;
+for(var gi=0;gi<=gjSegs;gi++){
+  var gt=gi/gjSegs;
+  var gx=(gt-.5)*guardTotalL;
+  // szerokość (Z) i wysokość (Y) rosnące ku końcom
+  var edgeFactor=Math.pow(Math.abs(gt-.5)*2, 1.6); // 0 at center, 1 at ends
+  var gh=guardH*(.85+edgeFactor*.28);
+  var gd=guardDepth*(.80+edgeFactor*.35);
+  // 8 werteksów — prostokąt
+  gjVerts.push(
+    gx, gh/2,  gd/2,   gx,-gh/2,  gd/2,
+    gx,-gh/2, -gd/2,   gx, gh/2, -gd/2,
+    gx, gh/2,  gd/2,   gx,-gh/2,  gd/2,  // duplicate for face normals
+    gx,-gh/2, -gd/2,   gx, gh/2, -gd/2
+  );
+}
+// Zbuduj ściany między pierścieniami
+for(var gi2=0;gi2<gjSegs;gi2++){
+  var gb=gi2*8, gn=(gi2+1)*8;
+  // top face
+  gjIdx.push(gb,gn,gn+3, gb,gn+3,gb+3);
+  // bottom face
+  gjIdx.push(gb+1,gb+2,gn+2, gb+1,gn+2,gn+1);
+  // front face
+  gjIdx.push(gb,gb+1,gn+1, gb,gn+1,gn);
+  // back face
+  gjIdx.push(gb+3,gn+3,gn+2, gb+3,gn+2,gb+2);
+}
+var gjGeo=new THREE.BufferGeometry();
+gjGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(gjVerts),3));
+gjGeo.setIndex(gjIdx);gjGeo.computeVertexNormals();
+
+// Jelec z ciemnego żelaza/stali (wczesnośredniowieczny — bez złota)
+var guardIronMat=new THREE.MeshStandardMaterial({color:0x2a2c30,roughness:.65,metalness:.82,emissive:new THREE.Color(0x040404),emissiveIntensity:.05});
+var guardMesh=new THREE.Mesh(gjGeo,guardIronMat);
+guardMesh.position.set(0,-.04,0);guardMesh.castShadow=true;sword.add(guardMesh);
+
+// Zaokrąglone końce jelca
+[-1,1].forEach(function(s){
+  var capG=new THREE.SphereGeometry(1,12,8);
+  capG.scale(guardDepth*.55, guardH*.52, guardDepth*.5);
+  var cap=new THREE.Mesh(capG,guardIronMat);
+  cap.position.set(s*guardTotalL/2,-.04,0);
+  cap.castShadow=true;sword.add(cap);
+});
+
+// Dekoracyjna linia wzdłuż środka jelca (wygrawerowany rowek)
+var gjLineG=new THREE.BoxGeometry(guardTotalL+.01,.01,.052);
+var gjLine=new THREE.Mesh(gjLineG,mSteelDark());gjLine.position.set(0,-.04,0);sword.add(gjLine);
+
+// Collar przejścia głownia→jelec
+var collarG=new THREE.CylinderGeometry(.052,.046,.035,16);
+var collarM=new THREE.Mesh(collarG,guardIronMat);collarM.position.set(0,.028,0);sword.add(collarM);
+
+// ════ GRIP ════
+var gripL=.98, gripY=-.06-gripL/2;
+// Iron grip — rectangular cross-section, slightly tapered
+var gripGeo=new THREE.BoxGeometry(.088,.98,.058);
+var gripM=new THREE.Mesh(gripGeo,guardIronMat);
+gripM.position.set(0,gripY,0);gripM.castShadow=true;sword.add(gripM);
+// Slight bevel edges — thin strips on corners
+[[.044,0,.029],[-.044,0,.029],[.044,0,-.029],[-.044,0,-.029]].forEach(function(p){
+  var bev=new THREE.Mesh(new THREE.BoxGeometry(.008,.98,.008),mSteelDark());
+  bev.position.set(p[0],gripY,p[2]);sword.add(bev);
+});
+
+// no wire wrap — iron grip
+
+// ════ POMMEL (wheel — typowy XIV w.) ════
+var pY=gripY-gripL/2-.016;
+// Main disc
+var pDisc=new THREE.Mesh(new THREE.CylinderGeometry(.068,.068,.052,28),guardIronMat);pDisc.position.set(0,pY,0);pDisc.castShadow=true;sword.add(pDisc);
+// Bevel top/bot
+var pBevT=new THREE.Mesh(new THREE.CylinderGeometry(.056,.068,.016,28),guardIronMat);pBevT.position.set(0,pY-.034,0);sword.add(pBevT);
+var pBevB=new THREE.Mesh(new THREE.CylinderGeometry(.068,.056,.016,28),guardIronMat);pBevB.position.set(0,pY+.034,0);sword.add(pBevB);
+// Equatorial ring groove
+var pRing=new THREE.Mesh(new THREE.TorusGeometry(.064,.005,8,28),mSteelDark());pRing.rotation.x=Math.PI/2;pRing.position.set(0,pY,0);sword.add(pRing);
+// Peening button
+var pBtn=new THREE.Mesh(new THREE.SphereGeometry(.022,10,8),guardIronMat);pBtn.position.set(0,pY-.065,0);sword.add(pBtn);
+// Pommel face engravings (simple cross)
+[-1,1].forEach(function(s){
+  var eV=new THREE.Mesh(new THREE.BoxGeometry(.005,.072,.003),mSteelDark());eV.position.set(0,pY,s*.053);sword.add(eV);
+  var eH=new THREE.Mesh(new THREE.BoxGeometry(.072,.005,.003),mSteelDark());eH.position.set(0,pY,s*.053);sword.add(eH);
+});
+
+// ════ BLADE ENGRAVING — small cross near ricasso ════
+var eV2=new THREE.Mesh(new THREE.BoxGeometry(.005,.08,.003),mSteelDark());eV2.position.set(0,.36,.021);sword.add(eV2);
+var eH2=new THREE.Mesh(new THREE.BoxGeometry(.052,.005,.003),mSteelDark());eH2.position.set(0,.36,.021);sword.add(eH2);
+
+// ════ TILT ════
+sword.rotation.z=.16;sword.position.set(0,.2,0);
+
+// ════ LIGHTS ════
+scene.add(new THREE.AmbientLight(0xd0d4e0,1.1));
+
+var keyL=new THREE.SpotLight(0xfff8f0,13,24,Math.PI/8,.28,1.5);
+keyL.position.set(-4,9,5);keyL.castShadow=true;keyL.shadow.mapSize.set(2048,2048);keyL.shadow.bias=-.001;
+scene.add(keyL);keyL.target.position.set(0,2,0);scene.add(keyL.target);
+
+var rimL=new THREE.DirectionalLight(0xb8d0e8,3.4);rimL.position.set(5,2,-4);scene.add(rimL);
+var fillL=new THREE.PointLight(0xa09888,3.0,20,2);fillL.position.set(2,-3,5);scene.add(fillL);
+var backL=new THREE.DirectionalLight(0xa08858,1.4);backL.position.set(-2,1,-7);scene.add(backL);
+var topL=new THREE.DirectionalLight(0xe8eaf0,1.0);topL.position.set(0,8,0);scene.add(topL);
+
+// ════ DUST ════
+var dn=40,dp=new Float32Array(dn*3),dv=[];
+for(var i=0;i<dn;i++){dp[i*3]=(Math.random()-.5)*8;dp[i*3+1]=-2+Math.random()*9;dp[i*3+2]=(Math.random()-.5)*6;dv.push({x:(Math.random()-.5)*.005,y:(Math.random()-.5)*.004,z:(Math.random()-.5)*.004});}
+var dustG=new THREE.BufferGeometry();dustG.setAttribute('position',new THREE.BufferAttribute(dp,3));
+var dustPts=new THREE.Points(dustG,new THREE.PointsMaterial({color:0x706050,size:.022,transparent:true,opacity:.28,sizeAttenuation:true}));scene.add(dustPts);
+
+// ════ ANIMATE ════
+var clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  var t=clock.getElapsedTime();
+
+  // Camera slow orbit when not manually controlled
+  if(auto)orbit.theta+=.0006;
+  camera.position.set(tgt.x+orbit.r*Math.sin(orbit.phi)*Math.sin(orbit.theta),tgt.y+orbit.r*Math.cos(orbit.phi),tgt.z+orbit.r*Math.sin(orbit.phi)*Math.cos(orbit.theta));
+  camera.lookAt(tgt);
+
+  // Miecz obraca się wokół własnej osi (Y lokalna)
+  sword.rotation.y = t * .55;
+
+  keyL.intensity=12.5+Math.sin(t*.5)*.5;
+  rimL.intensity=3.2+Math.sin(t*.38+.8)*.2;
+
+  for(var i=0;i<dn;i++){dp[i*3]+=dv[i].x;dp[i*3+1]+=dv[i].y;dp[i*3+2]+=dv[i].z;if(Math.abs(dp[i*3])>4)dv[i].x*=-1;if(dp[i*3+1]<-2||dp[i*3+1]>7)dv[i].y*=-1;if(Math.abs(dp[i*3+2])>3)dv[i].z*=-1;}
+  dustG.attributes.position.needsUpdate=true;
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>

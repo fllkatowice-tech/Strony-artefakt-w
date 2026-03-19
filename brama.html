@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Brama Habsburgów</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; width:100vw; height:100vh; overflow:hidden; }
+canvas { display:block; }
+#title {
+  position:absolute; top:16px; left:50%; transform:translateX(-50%);
+  color:#d4b060; font-family:'Palatino Linotype',serif;
+  font-size:17px; letter-spacing:6px; text-transform:uppercase;
+  text-shadow:0 0 24px #c8901088; white-space:nowrap;
+  opacity:0; animation:fin 2s ease 0.5s forwards;
+}
+#sub {
+  position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+  color:#6a4820; font-family:'Palatino Linotype',serif;
+  font-size:11px; letter-spacing:4px;
+  opacity:0; animation:fin 2s ease 3s forwards;
+}
+@keyframes fin { to{opacity:1;} }
+</style>
+</head>
+<body>
+<div id="title">✠ &nbsp; B R A M A &nbsp; H A B S B U R G Ó W &nbsp; ✠</div>
+<div id="sub">PORTA · IMPERATORIS · MUNDI</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════
+// SCENE
+// ══════════════════════════════════════════════════════
+var scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0806);
+scene.fog = new THREE.Fog(0x0a0806, 25, 65);
+
+var W=innerWidth, H=innerHeight;
+var camera = new THREE.PerspectiveCamera(52, W/H, 0.1, 120);
+camera.position.set(0, 3, 22);
+camera.lookAt(0, 4, 0);
+
+var renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(W, H);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=1.3;
+document.body.appendChild(renderer.domElement);
+
+// ══════════════════════════════════════════════════════
+// PROCEDURAL TEXTURES
+// ══════════════════════════════════════════════════════
+function makeStoneTex(w,h,base,dark){
+  var c=document.createElement('canvas'); c.width=w||256; c.height=h||256;
+  var ctx=c.getContext('2d');
+  ctx.fillStyle=base||'#6a6058'; ctx.fillRect(0,0,w,h);
+  // stone block lines
+  var bh=Math.round(h/8);
+  for(var row=0;row<12;row++){
+    var offset=(row%2===0)?0:w/4;
+    var y=row*bh;
+    var bw=Math.round(w/3);
+    for(var col=0;col<5;col++){
+      var x=(col*bw+offset)%(w+bw)-bw/2;
+      // block face variation
+      var shade=0.88+Math.random()*0.24;
+      var r=parseInt(base.slice(1,3),16), g2=parseInt(base.slice(3,5),16), b=parseInt(base.slice(5,7),16);
+      ctx.fillStyle='rgb('+Math.min(255,r*shade)+','+Math.min(255,g2*shade)+','+Math.min(255,b*shade)+')';
+      ctx.fillRect(x+2,y+2,bw-4,bh-4);
+    }
+    // mortar lines
+    ctx.fillStyle=dark||'#3a342e';
+    ctx.fillRect(0,y,w,2);
+    for(var col2=0;col2<5;col2++){
+      var mx=(col2*bw+offset)%(w+bw)-bw/2;
+      ctx.fillRect(mx,y,2,bh);
+    }
+  }
+  // surface grit
+  for(var i=0;i<800;i++){
+    var px=Math.random()*w, py=Math.random()*h;
+    var v=Math.random()>0.5?'rgba(255,250,240,':'rgba(0,0,0,';
+    ctx.fillStyle=v+(0.02+Math.random()*0.06)+')';
+    ctx.fillRect(px,py,1+Math.random()*2,1+Math.random()*2);
+  }
+  // moss streaks
+  for(var m=0;m<12;m++){
+    var mx2=Math.random()*w;
+    ctx.fillStyle='rgba(40,55,30,'+(0.04+Math.random()*0.1)+')';
+    ctx.fillRect(mx2,Math.random()*h*0.3,2+Math.random()*4,20+Math.random()*60);
+  }
+  var t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  return t;
+}
+
+function makeWoodTex(w,h){
+  var c=document.createElement('canvas'); c.width=w||256; c.height=h||512;
+  var ctx=c.getContext('2d');
+  ctx.fillStyle='#2a1608'; ctx.fillRect(0,0,w,h);
+  for(var i=0;i<180;i++){
+    var x=Math.random()*w;
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x+(Math.random()-0.5)*10,h);
+    ctx.strokeStyle='rgba('+(Math.random()>0.5?55:18)+','+(Math.random()>0.5?22:8)+',3,'+(0.04+Math.random()*0.12)+')';
+    ctx.lineWidth=0.4+Math.random()*1.5; ctx.stroke();
+  }
+  // plank lines
+  var pw=Math.round(w/5);
+  for(var p=0;p<6;p++){
+    ctx.fillStyle='rgba(0,0,0,0.25)';
+    ctx.fillRect(p*pw,0,2,h);
+  }
+  // iron studs (nails)
+  for(var s=0;s<30;s++){
+    var sx=(Math.floor(Math.random()*5)+0.5)*pw, sy=20+Math.random()*(h-40);
+    ctx.fillStyle='#181410';
+    ctx.beginPath(); ctx.arc(sx,sy,4,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(80,70,50,0.5)';
+    ctx.beginPath(); ctx.arc(sx-1,sy-1,2,0,Math.PI*2); ctx.fill();
+  }
+  var t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  return t;
+}
+
+function makeIronTex(){
+  var c=document.createElement('canvas'); c.width=128; c.height=128;
+  var ctx=c.getContext('2d');
+  ctx.fillStyle='#1c1c18'; ctx.fillRect(0,0,128,128);
+  for(var i=0;i<60;i++){
+    ctx.beginPath(); ctx.moveTo(Math.random()*128,Math.random()*128);
+    ctx.lineTo(Math.random()*128,Math.random()*128);
+    ctx.strokeStyle='rgba(255,255,255,'+(0.02+Math.random()*0.06)+')';
+    ctx.lineWidth=0.3+Math.random()*0.6; ctx.stroke();
+  }
+  for(var r=0;r<20;r++){
+    var rx=Math.random()*128,ry=Math.random()*128;
+    var rg=ctx.createRadialGradient(rx,ry,0,rx,ry,4+Math.random()*8);
+    rg.addColorStop(0,'rgba(50,40,20,0.3)'); rg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=rg; ctx.fillRect(0,0,128,128);
+  }
+  var t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  return t;
+}
+
+function makeGoldTex(){
+  var c=document.createElement('canvas'); c.width=128; c.height=128;
+  var ctx=c.getContext('2d');
+  var g=ctx.createLinearGradient(0,0,128,128);
+  g.addColorStop(0,'#ffe060'); g.addColorStop(0.4,'#d4a010');
+  g.addColorStop(0.7,'#b08008'); g.addColorStop(1,'#7a5000');
+  ctx.fillStyle=g; ctx.fillRect(0,0,128,128);
+  for(var i=0;i<40;i++){
+    ctx.beginPath(); ctx.moveTo(Math.random()*128,Math.random()*128);
+    ctx.lineTo(Math.random()*128,Math.random()*128);
+    ctx.strokeStyle='rgba(255,230,60,'+(0.04+Math.random()*0.1)+')';
+    ctx.lineWidth=0.3; ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function makeGroundTex(){
+  var c=document.createElement('canvas'); c.width=512; c.height=512;
+  var ctx=c.getContext('2d');
+  ctx.fillStyle='#2a2420'; ctx.fillRect(0,0,512,512);
+  // cobblestone pattern
+  for(var row=0;row<20;row++){
+    for(var col=0;col<16;col++){
+      var offset=(row%2)*16;
+      var x=col*32+offset, y=row*26;
+      var shade=0.8+Math.random()*0.4;
+      ctx.fillStyle='rgba('+(42*shade|0)+','+(38*shade|0)+','+(32*shade|0)+',1)';
+      ctx.fillRect(x+1,y+1,30,24);
+      ctx.strokeStyle='rgba(15,12,10,0.7)'; ctx.lineWidth=1;
+      ctx.strokeRect(x+1,y+1,30,24);
+    }
+  }
+  for(var i=0;i<2000;i++){
+    ctx.fillStyle='rgba(0,0,0,'+(0.02+Math.random()*0.08)+')';
+    ctx.fillRect(Math.random()*512,Math.random()*512,2,2);
+  }
+  var t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(6,6);
+  return t;
+}
+
+var stoneTex  = makeStoneTex(512,512,'#5e5650','#2e2a24');
+stoneTex.repeat.set(3,3);
+var stoneTex2 = makeStoneTex(256,256,'#504a44','#28241e');
+stoneTex2.repeat.set(2,4);
+var woodTex   = makeWoodTex(256,512);
+woodTex.repeat.set(1,1);
+var ironTex   = makeIronTex();
+var goldTex   = makeGoldTex();
+var groundTex = makeGroundTex();
+
+// ══════════════════════════════════════════════════════
+// MATERIALS
+// ══════════════════════════════════════════════════════
+var stoneMat = new THREE.MeshStandardMaterial({
+  map:stoneTex, color:0x807870, roughness:0.88, metalness:0.02
+});
+var stoneDarkMat = new THREE.MeshStandardMaterial({
+  map:stoneTex2, color:0x504844, roughness:0.92, metalness:0.01
+});
+var stoneArchMat = new THREE.MeshStandardMaterial({
+  map:stoneTex, color:0x908878, roughness:0.85, metalness:0.02
+});
+var woodMat = new THREE.MeshStandardMaterial({
+  map:woodTex, color:0x2a1808, roughness:0.88, metalness:0.0
+});
+var woodDarkMat = new THREE.MeshStandardMaterial({
+  map:woodTex, color:0x1a0e06, roughness:0.92, metalness:0.0
+});
+var ironMat = new THREE.MeshStandardMaterial({
+  map:ironTex, color:0x1c1c18, roughness:0.55, metalness:0.88
+});
+var goldMat = new THREE.MeshStandardMaterial({
+  map:goldTex, color:0xd4a010, roughness:0.18, metalness:1.0,
+  emissive:0x3a2000, emissiveIntensity:0.3
+});
+var darknessMat = new THREE.MeshStandardMaterial({
+  color:0x050302, roughness:1.0, metalness:0.0,
+  emissive:0x080604, emissiveIntensity:0.5
+});
+var groundMat = new THREE.MeshStandardMaterial({
+  map:groundTex, color:0x302820, roughness:0.98, metalness:0.0
+});
+var torchMat = new THREE.MeshStandardMaterial({
+  color:0xff5500, roughness:0.5, metalness:0.0,
+  emissive:0xff3300, emissiveIntensity:1.5,
+  transparent:true, opacity:0.9
+});
+
+// ══════════════════════════════════════════════════════
+// LIGHTS
+// ══════════════════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x1a1208, 0.35));
+
+// Moon / distant directional
+var moonL = new THREE.DirectionalLight(0x8090b0, 0.4);
+moonL.position.set(-5, 12, 8);
+moonL.castShadow=true;
+moonL.shadow.mapSize.set(1024,1024);
+scene.add(moonL);
+
+// Left torch
+var torchL1 = new THREE.PointLight(0xff6622, 0, 16, 2);
+torchL1.position.set(-4.5, 9.5, 1.5);
+scene.add(torchL1);
+
+// Right torch
+var torchL2 = new THREE.PointLight(0xff7733, 0, 16, 2);
+torchL2.position.set(4.5, 9.5, 1.5);
+scene.add(torchL2);
+
+// Inner warm glow (through gate)
+var innerGlow = new THREE.PointLight(0xffb050, 0, 30, 1.5);
+innerGlow.position.set(0, 3, -6);
+scene.add(innerGlow);
+
+// Camera follow light
+var camL = new THREE.SpotLight(0xfff0d0, 0, 35, Math.PI/5, 0.4, 1.5);
+camL.position.set(0, 12, 20);
+camL.castShadow=true;
+camL.shadow.mapSize.set(2048,2048);
+camL.shadow.bias=-0.002;
+scene.add(camL); scene.add(camL.target);
+
+// ══════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════
+function box(w,h,d,mat,px,py,pz){
+  px=px||0;py=py||0;pz=pz||0;
+  var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(px,py,pz);
+  m.castShadow=true; m.receiveShadow=true; return m;
+}
+function cyl(rt,rb,h,seg,mat,px,py,pz){
+  px=px||0;py=py||0;pz=pz||0;
+  var m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat);
+  m.position.set(px,py,pz);
+  m.castShadow=true; m.receiveShadow=true; return m;
+}
+function sph(r,mat,px,py,pz){
+  px=px||0;py=py||0;pz=pz||0;
+  var m=new THREE.Mesh(new THREE.SphereGeometry(r,12,12),mat);
+  m.position.set(px,py,pz); m.castShadow=true; return m;
+}
+
+// ══════════════════════════════════════════════════════
+// GROUND
+// ══════════════════════════════════════════════════════
+var ground = new THREE.Mesh(new THREE.PlaneGeometry(60,60), groundMat);
+ground.rotation.x=-Math.PI/2; ground.position.y=0;
+ground.receiveShadow=true; scene.add(ground);
+
+// Stone path
+var path = box(6,0.06,60,new THREE.MeshStandardMaterial({
+  map:groundTex,color:0x484038,roughness:0.95,metalness:0}),0,0.01,0);
+path.receiveShadow=true; scene.add(path);
+
+// ══════════════════════════════════════════════════════
+// GATE STRUCTURE
+// ══════════════════════════════════════════════════════
+var gate = new THREE.Group();
+scene.add(gate);
+
+var GW=10, GH=14, GT=3.5; // gate width, height, thickness
+
+// ── OUTER WALL SECTIONS (left & right of gate) ────────
+[-1,1].forEach(function(side){
+  var wx=side*(GW/2+4);
+  // Main wall
+  gate.add(box(8,16,GT,stoneMat, wx,8,0));
+  // Wall cap
+  gate.add(box(8.4,0.8,GT+0.2,stoneDarkMat, wx,16.4,0));
+  // Battlements
+  for(var b=0;b<5;b++){
+    var bx=wx-3.2+b*1.6;
+    if(b%2===0) gate.add(box(1.4,2.2,GT+0.1,stoneMat, bx,17.5,0));
+  }
+});
+
+// ── MAIN GATEHOUSE FRAME ──────────────────────────────
+// Left pillar
+gate.add(box(3,GH+2,GT,stoneMat, -(GW/2+1.5),GH/2+1,0));
+gate.add(box(3.2,0.8,GT+0.2,stoneDarkMat, -(GW/2+1.5),GH+2.4,0));
+// Right pillar
+gate.add(box(3,GH+2,GT,stoneMat, GW/2+1.5,GH/2+1,0));
+gate.add(box(3.2,0.8,GT+0.2,stoneDarkMat, GW/2+1.5,GH+2.4,0));
+
+// Top horizontal lintel
+gate.add(box(GW+6,2.5,GT,stoneMat, 0,GH+1.25,0));
+// Lintel decorative band
+gate.add(box(GW+6.2,0.5,GT+0.15,stoneDarkMat, 0,GH+2.75,0));
+
+// ── ARCH over gateway ─────────────────────────────────
+// Arch keystone blocks (segmental arch)
+var nArch=13;
+for(var a=0;a<nArch;a++){
+  var at=a/(nArch-1)-0.5;
+  var aAngle=at*Math.PI*0.72;
+  var aR=5.8;
+  var ax=Math.sin(aAngle)*aR, ay=GH-1+Math.cos(aAngle)*aR;
+  var archBlock = new THREE.Mesh(new THREE.BoxGeometry(1.5,2.2,GT+0.3),stoneArchMat);
+  archBlock.position.set(ax,ay,0);
+  archBlock.rotation.z=-aAngle;
+  archBlock.castShadow=true; archBlock.receiveShadow=true;
+  gate.add(archBlock);
+  // Keystone highlight at top
+  if(a===Math.floor(nArch/2)){
+    var ks = new THREE.Mesh(new THREE.BoxGeometry(1.6,2.4,GT+0.5),
+      new THREE.MeshStandardMaterial({map:stoneTex,color:0x988878,roughness:0.82,metalness:0.03}));
+    ks.position.set(ax,ay+0.1,0); ks.rotation.z=-aAngle;
+    gate.add(ks);
+  }
+}
+
+// ── TOWERS (flanking) ─────────────────────────────────
+[-1,1].forEach(function(side){
+  var tx=side*(GW/2+4.5);
+  var TH=22, TR=3.2;
+  // Tower cylinder
+  gate.add(cyl(TR,TR+0.3,TH,16,stoneMat, tx,TH/2,0));
+  // Tower cap (conical roof)
+  gate.add(cyl(0,TR+0.2,4.5,16,
+    new THREE.MeshStandardMaterial({color:0x303840,roughness:0.7,metalness:0.1}),
+    tx,TH+2.25,0));
+  // Tower battlements
+  for(var tb=0;tb<8;tb++){
+    var tbA=tb/8*Math.PI*2;
+    var tbx=tx+Math.cos(tbA)*(TR-0.1), tbz=Math.sin(tbA)*(TR-0.1);
+    if(tb%2===0) gate.add(box(0.9,2,0.9,stoneMat,tbx,TH+1,tbz));
+  }
+  // Arrow slits
+  [-2,0,2].forEach(function(dy){
+    var slit=box(0.3,1.2,0.1,stoneDarkMat, tx+side*TR*0.95,TH/2+dy*3.5,0);
+    gate.add(slit);
+  });
+  // Tower base batter (slight outward slope)
+  gate.add(cyl(TR+0.8,TR+1.4,1.5,16,stoneDarkMat,tx,0.75,0));
+
+  // TORCH on tower
+  var torchGroup=new THREE.Group();
+  torchGroup.position.set(tx+side*0.8,TH*0.55,TR+0.2);
+  gate.add(torchGroup);
+  torchGroup.add(box(0.1,0.6,0.1,ironMat,0,0,0));
+  var flame=new THREE.Mesh(new THREE.ConeGeometry(0.2,0.45,8),torchMat);
+  flame.position.y=0.52; torchGroup.add(flame);
+  var flameGlow=new THREE.Mesh(new THREE.ConeGeometry(0.28,0.6,8),
+    new THREE.MeshStandardMaterial({color:0xff8800,roughness:0.5,metalness:0,
+      emissive:0xff6600,emissiveIntensity:0.8,transparent:true,opacity:0.5}));
+  flameGlow.position.y=0.54; torchGroup.add(flameGlow);
+});
+
+// ── PORTCULLIS (iron grate – stays down at start, rises) ──
+var portG = new THREE.Group();
+portG.position.set(0, 0, 0.2);
+gate.add(portG);
+
+var portcullisHeight=GH-0.5;
+// Horizontal bars
+for(var ph=0;ph<8;ph++){
+  portG.add(box(GW-0.6,0.22,0.22,ironMat, 0,1.2+ph*(portcullisHeight/8),0));
+}
+// Vertical bars
+for(var pv=0;pv<9;pv++){
+  portG.add(box(0.18,portcullisHeight,0.18,ironMat, -GW/2+0.4+pv*(GW-0.8)/8,portcullisHeight/2+0.5,0));
+}
+// Spikes at bottom
+for(var sp=0;sp<9;sp++){
+  var spike=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.5,6),ironMat);
+  spike.position.set(-GW/2+0.4+sp*(GW-0.8)/8,0.8,0);
+  portG.add(spike);
+}
+
+// ── DOOR LEFT ──────────────────────────────────────────
+var doorLGroup = new THREE.Group();
+doorLGroup.position.set(-GW/2+0.1, 0, 0);
+gate.add(doorLGroup);
+
+var doorL = box(GW/2-0.3, GH-0.5, 0.35, woodMat, (GW/2-0.3)/2, (GH-0.5)/2+0.2, 0);
+doorLGroup.add(doorL);
+// Door planks
+for(var dp=0;dp<5;dp++){
+  doorLGroup.add(box((GW/2-0.6)/5, GH-0.5, 0.02, woodDarkMat,
+    (GW/2-0.3)/2-2+(dp*1.02), (GH-0.5)/2+0.2, 0.18));
+}
+// Iron straps horizontal
+[1.5,3.5,5.5,8,10,12].forEach(function(y){
+  doorLGroup.add(box(GW/2-0.4,0.28,0.42,ironMat,(GW/2-0.3)/2,y,0.1));
+});
+// Iron studs on straps
+for(var is=0;is<20;is++){
+  var isx=0.4+is*((GW/2-0.6)/19), isy=1.5+Math.floor(is/4)*2;
+  doorLGroup.add(sph(0.1,ironMat,isx,isy,0.22));
+}
+// Hinge bolts
+[2,7,11.5].forEach(function(y){
+  doorLGroup.add(box(0.6,0.6,0.45,ironMat,0.2,y,0.1));
+  doorLGroup.add(sph(0.12,goldMat,0.2,y,0.28));
+});
+// Door handle
+doorLGroup.add(box(0.25,1.2,0.25,ironMat,GW/2-0.7,(GH-0.5)/2+0.2,0.3));
+doorLGroup.add(sph(0.18,ironMat,GW/2-0.7,(GH-0.5)/2+0.2+0.7,0.35));
+
+// ── DOOR RIGHT ─────────────────────────────────────────
+var doorRGroup = new THREE.Group();
+doorRGroup.position.set(GW/2-0.1, 0, 0);
+gate.add(doorRGroup);
+
+var doorR = box(GW/2-0.3, GH-0.5, 0.35, woodMat, -(GW/2-0.3)/2, (GH-0.5)/2+0.2, 0);
+doorRGroup.add(doorR);
+for(var dp2=0;dp2<5;dp2++){
+  doorRGroup.add(box((GW/2-0.6)/5, GH-0.5, 0.02, woodDarkMat,
+    -(GW/2-0.3)/2-2+(dp2*1.02), (GH-0.5)/2+0.2, 0.18));
+}
+[1.5,3.5,5.5,8,10,12].forEach(function(y){
+  doorRGroup.add(box(GW/2-0.4,0.28,0.42,ironMat,-(GW/2-0.3)/2,y,0.1));
+});
+for(var is2=0;is2<20;is2++){
+  var isx2=-(0.4+is2*((GW/2-0.6)/19)), isy2=1.5+Math.floor(is2/4)*2;
+  doorRGroup.add(sph(0.1,ironMat,isx2,isy2,0.22));
+}
+[2,7,11.5].forEach(function(y2){
+  doorRGroup.add(box(0.6,0.6,0.45,ironMat,-0.2,y2,0.1));
+  doorRGroup.add(sph(0.12,goldMat,-0.2,y2,0.28));
+});
+doorRGroup.add(box(0.25,1.2,0.25,ironMat,-(GW/2-0.7),(GH-0.5)/2+0.2,0.3));
+doorRGroup.add(sph(0.18,ironMat,-(GW/2-0.7),(GH-0.5)/2+0.2+0.7,0.35));
+
+// ── DARKNESS PLANE (behind open gate) ─────────────────
+var darkPlane = box(GW-0.8,GH-0.6,0.1,darknessMat,0,(GH-0.5)/2+0.2,-GT/2-0.1);
+gate.add(darkPlane);
+
+// ── HABSBURG EAGLE EMBLEM over arch ───────────────────
+var emblemGroup = new THREE.Group();
+emblemGroup.position.set(0, GH+3.8, GT/2+0.15);
+gate.add(emblemGroup);
+
+// Escutcheon shield
+var shieldMesh = new THREE.Mesh(
+  new THREE.BoxGeometry(3.8,4.4,0.22),
+  new THREE.MeshStandardMaterial({map:stoneTex,color:0x706860,roughness:0.75,metalness:0.05})
+);
+emblemGroup.add(shieldMesh);
+
+// Shield border (gold)
+var shieldBorder = new THREE.Mesh(new THREE.BoxGeometry(4.1,4.7,0.1),goldMat);
+shieldBorder.position.z=-0.06;
+emblemGroup.add(shieldBorder);
+
+// Double-headed eagle (gold relief)
+// Body
+var eagleBody=new THREE.Mesh(new THREE.SphereGeometry(0.9,14,10),goldMat);
+eagleBody.scale.set(0.85,1.1,0.3);
+eagleBody.position.set(0,0,0.14);
+emblemGroup.add(eagleBody);
+
+// Wings
+[-1,1].forEach(function(side){
+  // Upper wing
+  var wing1=new THREE.Mesh(new THREE.SphereGeometry(0.9,10,8),goldMat);
+  wing1.scale.set(1.5,0.55,0.25);
+  wing1.position.set(side*1.45,0.6,0.12);
+  wing1.rotation.z=side*0.4;
+  emblemGroup.add(wing1);
+  // Lower wing
+  var wing2=new THREE.Mesh(new THREE.SphereGeometry(0.7,10,8),goldMat);
+  wing2.scale.set(1.3,0.45,0.22);
+  wing2.position.set(side*1.3,-0.3,0.11);
+  wing2.rotation.z=side*0.25;
+  emblemGroup.add(wing2);
+  // Head
+  var head=sph(0.35,goldMat, side*0.52,1.4,0.14);
+  emblemGroup.add(head);
+  // Crown
+  var crown=cyl(0.2,0.28,0.22,8,goldMat, side*0.52,1.82,0.14);
+  emblemGroup.add(crown);
+  // Beak
+  var beak=new THREE.Mesh(new THREE.ConeGeometry(0.08,0.28,4),goldMat);
+  beak.position.set(side*0.72,1.4,0.15);
+  beak.rotation.z=side*Math.PI/2;
+  emblemGroup.add(beak);
+});
+
+// Red shield on eagle breast
+var breastShield=new THREE.Mesh(new THREE.BoxGeometry(0.65,0.8,0.08),
+  new THREE.MeshStandardMaterial({color:0x8a0808,roughness:0.4,metalness:0.05,
+    emissive:0x3a0404,emissiveIntensity:0.2}));
+breastShield.position.set(0,0,0.22);
+emblemGroup.add(breastShield);
+// White diagonal stripe
+var stripe=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.82,0.06),
+  new THREE.MeshStandardMaterial({color:0xf0ece0,roughness:0.4,metalness:0}));
+stripe.position.set(0,0,0.26);
+emblemGroup.add(stripe);
+
+// Sceptre & Orb
+var sceptre=box(0.06,1.2,0.06,goldMat,0.55,-0.5,0.18);
+sceptre.rotation.z=0.3;
+emblemGroup.add(sceptre);
+var orb=sph(0.2,goldMat,-0.55,-0.5,0.18);
+emblemGroup.add(orb);
+var orbCross=box(0.04,0.35,0.04,goldMat,-0.55,-0.2,0.18);
+emblemGroup.add(orbCross);
+
+// ── WALL SCONCES (torches on pillars) ─────────────────
+[-1,1].forEach(function(side){
+  var sx=side*(GW/2+1.5), sy=7;
+  // Bracket
+  gate.add(box(0.12,0.6,0.5,ironMat,sx+side*-1.3,sy,GT/2+0.2));
+  gate.add(box(0.5,0.12,0.5,ironMat,sx+side*-1.0,sy,GT/2+0.2));
+  // Torch cup
+  gate.add(cyl(0.18,0.12,0.45,8,ironMat,sx+side*-0.65,sy,GT/2+0.38));
+  // Flame
+  var fl=new THREE.Mesh(new THREE.ConeGeometry(0.18,0.5,8),torchMat);
+  fl.position.set(sx+side*-0.65,sy+0.48,GT/2+0.38);
+  gate.add(fl);
+  var flg=new THREE.Mesh(new THREE.ConeGeometry(0.25,0.65,8),
+    new THREE.MeshStandardMaterial({color:0xff9900,roughness:0.5,metalness:0,
+      emissive:0xff6600,emissiveIntensity:0.7,transparent:true,opacity:0.45}));
+  flg.position.set(sx+side*-0.65,sy+0.52,GT/2+0.38);
+  gate.add(flg);
+});
+
+// ── CHAIN system (portcullis chains) ──────────────────
+[-1,1].forEach(function(side){
+  for(var cl=0;cl<10;cl++){
+    var chainLink=new THREE.Mesh(new THREE.TorusGeometry(0.12,0.04,6,10),ironMat);
+    chainLink.position.set(side*1.8, GH-0.2-cl*0.55, -0.5);
+    chainLink.rotation.x=(cl%2===0)?0:Math.PI/2;
+    gate.add(chainLink);
+  }
+});
+
+// ── GROUND DETAIL: wheel ruts ─────────────────────────
+[-0.8,0.8].forEach(function(x){
+  gate.add(box(0.25,0.04,18,
+    new THREE.MeshStandardMaterial({color:0x1a1410,roughness:1,metalness:0}),
+    x,0.01,5));
+});
+
+// ══════════════════════════════════════════════════════
+// DUST PARTICLES
+// ══════════════════════════════════════════════════════
+var DC=200;
+var dG=new THREE.BufferGeometry();
+var dP=new Float32Array(DC*3);
+var dV=[];
+for(var i=0;i<DC;i++){
+  dP[i*3]=(Math.random()-0.5)*22; dP[i*3+1]=Math.random()*16;
+  dP[i*3+2]=(Math.random()-0.5)*12-4;
+  dV.push({vx:(Math.random()-0.5)*0.015,vy:0.005+Math.random()*0.01,
+            vz:(Math.random()-0.5)*0.01});
+}
+dG.setAttribute('position',new THREE.BufferAttribute(dP,3));
+scene.add(new THREE.Points(dG,
+  new THREE.PointsMaterial({color:0xa08858,size:0.06,transparent:true,opacity:0.35,sizeAttenuation:true})));
+
+// ══════════════════════════════════════════════════════
+// ANIMATION STATE
+// ══════════════════════════════════════════════════════
+// Phases:
+// 0: darkness, gate closed (0 – 1.5s)
+// 1: torches ignite, light builds (1.5 – 3s)
+// 2: portcullis rises (3 – 5.5s)
+// 3: doors swing open dramatically (5.5 – 8.5s)
+// 4: camera slowly moves forward into light (8.5s+)
+
+var elapsed=0;
+var clock=new THREE.Clock();
+
+// Initial state
+doorLGroup.rotation.y=0;
+doorRGroup.rotation.y=0;
+portG.position.y=0;
+torchL1.intensity=0; torchL2.intensity=0;
+innerGlow.intensity=0; camL.intensity=0;
+
+// Camera animation
+var camStartPos = new THREE.Vector3(0,3,22);
+var camEndPos   = new THREE.Vector3(0,3.5,11);
+var camStartLook= new THREE.Vector3(0,4,0);
+var camEndLook  = new THREE.Vector3(0,4,-5);
+
+function easeInOut(t){ return t<0.5?2*t*t:1-(Math.pow(-2*t+2,2)/2); }
+function easeOut(t){ return 1-Math.pow(1-t,3); }
+function easeIn(t){ return t*t*t; }
+
+function animate(){
+  requestAnimationFrame(animate);
+  var dt=Math.min(clock.getDelta(),0.05);
+  elapsed+=dt;
+
+  // Torch flicker
+  var flicker1=1+Math.sin(elapsed*7.1)*0.18+Math.sin(elapsed*13.3)*0.08;
+  var flicker2=1+Math.sin(elapsed*8.4+1)*0.15+Math.sin(elapsed*15.1)*0.07;
+
+  // Phase 0: complete darkness, gate closed
+  if(elapsed<1.5){
+    camL.intensity=0;
+    torchL1.intensity=0; torchL2.intensity=0;
+    innerGlow.intensity=0;
+  }
+
+  // Phase 1: torches ignite (1.5 – 3s)
+  else if(elapsed<3.0){
+    var p1=easeOut((elapsed-1.5)/1.5);
+    torchL1.intensity=p1*18*flicker1;
+    torchL2.intensity=p1*16*flicker2;
+    camL.intensity=p1*22;
+  }
+
+  // Phase 2: portcullis rises (3 – 5.5s)
+  else if(elapsed<5.5){
+    var p2=easeInOut((elapsed-3.0)/2.5);
+    torchL1.intensity=18*flicker1;
+    torchL2.intensity=16*flicker2;
+    camL.intensity=22;
+    portG.position.y = p2*(GH+1.5);
+    // Metallic creak sound effect: slight portcullis wobble
+    portG.rotation.z=Math.sin((elapsed-3)*8)*0.003*(1-p2);
+    innerGlow.intensity=p2*5;
+  }
+
+  // Phase 3: doors swing open (5.5 – 8.5s)
+  else if(elapsed<8.5){
+    var p3=easeInOut((elapsed-5.5)/3.0);
+    torchL1.intensity=18*flicker1;
+    torchL2.intensity=16*flicker2;
+    camL.intensity=22;
+    portG.position.y=GH+1.5;
+    // Swing doors outward
+    var maxAngle=-Math.PI*0.72;
+    doorLGroup.rotation.y = p3*maxAngle;
+    doorRGroup.rotation.y = -p3*maxAngle;
+    // Inner glow intensifies as doors open
+    innerGlow.intensity=5+p3*18;
+    // Camera slightly pushes in
+    var cp3=easeOut(p3*0.4);
+    camera.position.lerpVectors(camStartPos, new THREE.Vector3(0,3,18), cp3);
+    var lp3=new THREE.Vector3(); lp3.lerpVectors(camStartLook,new THREE.Vector3(0,4,-2),cp3);
+    camera.lookAt(lp3);
+  }
+
+  // Phase 4: camera moves through gate (8.5s+)
+  else{
+    var p4=Math.min((elapsed-8.5)/6.0,1);
+    var pe=easeInOut(p4);
+    torchL1.intensity=18*flicker1;
+    torchL2.intensity=16*flicker2;
+    camL.intensity=22+p4*10;
+    doorLGroup.rotation.y=-Math.PI*0.72;
+    doorRGroup.rotation.y= Math.PI*0.72;
+    portG.position.y=GH+1.5;
+    innerGlow.intensity=23+Math.sin(elapsed*1.2)*2;
+    camera.position.lerpVectors(camStartPos,camEndPos,pe);
+    var lk=new THREE.Vector3(); lk.lerpVectors(camStartLook,camEndLook,pe);
+    camera.lookAt(lk);
+    // Very slow idle sway after arrival
+    if(p4>=1){
+      camera.position.x=Math.sin(elapsed*0.3)*0.08;
+      camera.position.y=3.5+Math.sin(elapsed*0.5)*0.06;
+    }
+  }
+
+  // Dust
+  for(var i=0;i<DC;i++){
+    dP[i*3]+=dV[i].vx; dP[i*3+1]+=dV[i].vy; dP[i*3+2]+=dV[i].vz;
+    if(dP[i*3+1]>16){dP[i*3+1]=0; dP[i*3]=(Math.random()-0.5)*22;}
+  }
+  dG.attributes.position.needsUpdate=true;
+
+  renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener('resize',function(){
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>

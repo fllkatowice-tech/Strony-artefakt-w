@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laboratorium Alchemiczne — Synagoga XIII w.</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#05030a;width:100vw;height:100vh;overflow:hidden;cursor:crosshair;
+    font-family:'Palatino Linotype',Palatino,serif}
+  canvas{display:block;position:fixed;inset:0}
+  #vignette{position:fixed;inset:0;pointer-events:none;z-index:8;
+    background:radial-gradient(ellipse at 50% 38%,transparent 30%,rgba(2,1,5,.80) 100%)}
+  #title{position:fixed;top:20px;left:50%;transform:translateX(-50%);
+    color:#c8982a;font-size:clamp(9px,.78vw,12px);letter-spacing:11px;text-transform:uppercase;
+    text-shadow:0 0 50px #a07818bb;white-space:nowrap;opacity:0;
+    animation:fi 3s ease 2.5s forwards;pointer-events:none;z-index:12}
+  #sub{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+    color:#2e1e06;font-size:clamp(6px,.50vw,8px);letter-spacing:7px;text-transform:uppercase;
+    white-space:nowrap;opacity:0;animation:fi 2s ease 5s forwards;pointer-events:none;z-index:12}
+  #hint{position:fixed;bottom:34px;left:50%;transform:translateX(-50%);
+    color:#1e1004;font-size:clamp(6px,.48vw,7px);letter-spacing:5px;text-transform:uppercase;
+    white-space:nowrap;opacity:0;
+    animation:fi 2s ease 6s forwards,fo 2s ease 15s forwards;pointer-events:none;z-index:12}
+  @keyframes fi{to{opacity:1}} @keyframes fo{to{opacity:0}}
+</style>
+</head>
+<body>
+<div id="vignette"></div>
+<div id="title">✦ &nbsp; B E T &nbsp; H A M I D R A S H &nbsp; · &nbsp; X I I I &nbsp; W I E K &nbsp; ✦</div>
+<div id="sub">SYNAGOGA · LABORATORIUM ALCHEMICZNE · ZŁOTY WIEK KABAŁY PROWANSALSKIEJ</div>
+<div id="hint">PRZECIĄGNIJ · SCROLL = ZOOM</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+// ── Renderer ──────────────────────────────────────────────────────────
+const R = new THREE.WebGLRenderer({antialias:true});
+R.setSize(innerWidth,innerHeight);
+R.setPixelRatio(Math.min(devicePixelRatio,2));
+R.shadowMap.enabled=true; R.shadowMap.type=THREE.PCFSoftShadowMap;
+R.toneMapping=THREE.ACESFilmicToneMapping; R.toneMappingExposure=1.12;
+document.body.appendChild(R.domElement);
+
+const scene=new THREE.Scene();
+scene.fog=new THREE.FogExp2(0x120a04,0.055);
+
+const cam=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.05,60);
+cam.position.set(0,1.9,5.8); cam.lookAt(0,1.7,0);
+
+// ── Canvas textures ───────────────────────────────────────────────────
+function tex(w,h,fn,rep=[1,1]){
+  const c=document.createElement('canvas'); c.width=w; c.height=h;
+  fn(c.getContext('2d'),w,h);
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  t.repeat.set(...rep); return t;
+}
+
+// Limestone blocks
+const tStone=tex(512,512,(ctx,w,h)=>{
+  ctx.fillStyle='#c4b48a'; ctx.fillRect(0,0,w,h);
+  const bw=128,bh=56;
+  for(let row=0;row<h/bh+1;row++)for(let col=0;col<w/bw+2;col++){
+    const ox=(row%2)*(bw/2);
+    const x=col*bw-ox-bw/2, y=row*bh;
+    const d=(Math.random()-.5)*22;
+    ctx.fillStyle=`rgb(${178+d},${162+d},${122+d})`;
+    ctx.fillRect(x+1,y+1,bw-2,bh-2);
+    // mortar shadow
+    ctx.fillStyle='rgba(40,28,10,.30)';
+    ctx.fillRect(x,y,bw,2); ctx.fillRect(x,y,2,bh);
+    ctx.fillStyle='rgba(220,200,160,.15)';
+    ctx.fillRect(x+2,y+2,bw-4,2); ctx.fillRect(x+2,y+2,2,bh-4);
+  }
+  for(let i=0;i<5000;i++){
+    const d=(Math.random()-.5)*30;
+    ctx.fillStyle=`rgba(${d>0?255:0},${d>0?255:0},${d>0?200:0},${Math.abs(d)/800})`;
+    ctx.fillRect(Math.random()*w,Math.random()*h,1+Math.random()*2,1);
+  }
+},[3,3]);
+
+const tFloor=tex(512,512,(ctx,w,h)=>{
+  const ts=80;
+  for(let r=0;r<h/ts+1;r++)for(let c=0;c<w/ts+1;c++){
+    const base=(r+c)%2===0?[92,82,54]:[80,70,46];
+    const d=(Math.random()-.5)*12;
+    ctx.fillStyle=`rgb(${base[0]+d},${base[1]+d},${base[2]+d})`;
+    ctx.fillRect(c*ts,r*ts,ts,ts);
+    ctx.strokeStyle='rgba(25,18,8,.4)'; ctx.lineWidth=1.5;
+    ctx.strokeRect(c*ts+.75,r*ts+.75,ts-1.5,ts-1.5);
+  }
+  for(let i=0;i<6000;i++){
+    ctx.fillStyle=`rgba(0,0,0,${Math.random()*.04})`;
+    ctx.fillRect(Math.random()*w,Math.random()*h,1,1);
+  }
+},[4,4]);
+
+const tWood=tex(256,512,(ctx,w,h)=>{
+  const g=ctx.createLinearGradient(0,0,w*.3,0);
+  g.addColorStop(0,'#6a4020'); g.addColorStop(.4,'#4a2c10');
+  g.addColorStop(.8,'#3a2008'); g.addColorStop(1,'#5a3818');
+  ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+  for(let i=0;i<90;i++){
+    let px=Math.random()*w;
+    ctx.beginPath(); ctx.moveTo(px,0);
+    for(let y=0;y<h;y+=10){px+=(Math.random()-.5)*3.5; ctx.lineTo(px,y);}
+    ctx.strokeStyle=`rgba(${15+Math.random()*25},${8+Math.random()*12},2,${.08+Math.random()*.18})`;
+    ctx.lineWidth=.4+Math.random()*1.2; ctx.stroke();
+  }
+},[1,2]);
+
+const tParch=tex(256,256,(ctx,w,h)=>{
+  const g=ctx.createRadialGradient(110,110,5,128,128,150);
+  g.addColorStop(0,'#ecdda0'); g.addColorStop(.5,'#d8c870');
+  g.addColorStop(1,'#b09840');
+  ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+  for(let i=0;i<800;i++){
+    ctx.beginPath(); ctx.arc(Math.random()*w,Math.random()*h,.4+Math.random()*2.8,0,Math.PI*2);
+    ctx.fillStyle=`rgba(70,45,8,${.015+Math.random()*.07})`; ctx.fill();
+  }
+  // Hebrew-like text lines
+  ctx.fillStyle='rgba(35,18,5,.5)'; ctx.font='7px serif';
+  const heb='אבגדהוזחטיכלמנסעפצקרשת';
+  for(let row=0;row<14;row++){
+    let xpos=240;
+    for(let col=0;col<22;col++){
+      if(Math.random()>.15){
+        ctx.fillText(heb[Math.floor(Math.random()*heb.length)],xpos,16+row*16);
+      }
+      xpos-=9+Math.random()*3;
+    }
+  }
+});
+
+const tGold=tex(128,128,(ctx,w,h)=>{
+  const g=ctx.createRadialGradient(55,55,3,64,64,75);
+  g.addColorStop(0,'#fff8b8'); g.addColorStop(.3,'#f0d040');
+  g.addColorStop(.7,'#c8a010'); g.addColorStop(1,'#8a6808');
+  ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+  for(let i=0;i<400;i++){
+    ctx.beginPath(); ctx.arc(Math.random()*w,Math.random()*h,.2+Math.random()*2,0,Math.PI*2);
+    ctx.fillStyle=`rgba(255,240,100,${.02+Math.random()*.10})`; ctx.fill();
+  }
+  for(let i=0;i<12;i++){
+    ctx.beginPath(); ctx.moveTo(Math.random()*w,0);
+    ctx.lineTo(Math.random()*w,h);
+    ctx.strokeStyle=`rgba(180,140,20,${.03+Math.random()*.06})`;
+    ctx.lineWidth=.3+Math.random()*.6; ctx.stroke();
+  }
+},[2,2]);
+
+// Hebrew inscription for walls
+const tHebrew=tex(512,256,(ctx,w,h)=>{
+  ctx.clearRect(0,0,w,h);
+  const heb='אבגדהוזחטיכלמנסעפצקרשת';
+  for(let i=0;i<80;i++){
+    ctx.globalAlpha=.08+Math.random()*.28;
+    ctx.font=`${14+Math.random()*22}px serif`;
+    ctx.fillStyle=`hsl(${36+Math.random()*18},${55+Math.random()*30}%,${38+Math.random()*28}%)`;
+    ctx.fillText(heb[Math.floor(Math.random()*heb.length)],Math.random()*w,Math.random()*h);
+  }
+  ctx.globalAlpha=1;
+});
+
+// ── Materials ─────────────────────────────────────────────────────────
+const mStone =new THREE.MeshStandardMaterial({map:tStone, roughness:.96,metalness:0,color:0xd0bc90});
+const mFloor =new THREE.MeshStandardMaterial({map:tFloor, roughness:.93,metalness:0,color:0xa89060});
+const mWood  =new THREE.MeshStandardMaterial({map:tWood,  roughness:.87,metalness:0,color:0x8a5c30});
+const mGold  =new THREE.MeshStandardMaterial({map:tGold,  roughness:.14,metalness:.92,color:0xd8b028,
+  emissive:0x704c08,emissiveIntensity:.18});
+const mParch =new THREE.MeshStandardMaterial({map:tParch, roughness:.82,metalness:0,color:0xdcc870});
+const mHeb   =new THREE.MeshStandardMaterial({map:tHebrew,transparent:true,opacity:.55,roughness:.9,metalness:0});
+const mDark  =new THREE.MeshStandardMaterial({color:0x120a04,roughness:.95,metalness:0});
+const mIron  =new THREE.MeshStandardMaterial({color:0x2a2520,roughness:.68,metalness:.82});
+const mCopper=new THREE.MeshStandardMaterial({color:0xb07228,roughness:.32,metalness:.78,
+  emissive:0x281808,emissiveIntensity:.10});
+
+// ── Helpers ───────────────────────────────────────────────────────────
+const G=new THREE.Group(); scene.add(G);
+
+function mk(geo,mat,{x=0,y=0,z=0,rx=0,ry=0,rz=0,cs=true,rs=true}={}){
+  const m=new THREE.Mesh(geo,mat);
+  m.position.set(x,y,z); m.rotation.set(rx,ry,rz);
+  m.castShadow=cs; m.receiveShadow=rs; return m;
+}
+const bxg=(w,h,d)=>new THREE.BoxGeometry(w,h,d);
+const cyg=(rt,rb,h,s)=>new THREE.CylinderGeometry(rt,rb,h,s);
+const spg=(r,s)=>new THREE.SphereGeometry(r,s,Math.ceil(s*.65));
+function bx(w,h,d,m,o={}){return mk(bxg(w,h,d),m,o);}
+function cy(rt,rb,h,s,m,o={}){return mk(cyg(rt,rb,h,s),m,o);}
+function sp(r,s,m,o={}){return mk(spg(r,s),m,o);}
+const a=(m)=>{G.add(m);return m;}
+
+// ══════════════════════════════════════════════════════════════════════
+// ROOM — smaller, cosier: 10×6×12 (W×H×D)
+// ══════════════════════════════════════════════════════════════════════
+const RW=10, RH=6, RD=12;
+
+// Floor
+a(bx(RW,.25,RD,mFloor,{y:-.125,rs:true,cs:false}));
+// Ceiling (ribbed)
+a(bx(RW,.2,RD,mStone,{y:RH+.1,cs:false,rs:true}));
+// Walls
+a(bx(RW,RH,.25,mStone,{y:RH/2,z:-RD/2,cs:false,rs:true}));  // back
+// front wall built below with door opening
+a(bx(.25,RH,RD,mStone,{y:RH/2,x:-RW/2,cs:false,rs:true}));  // left
+a(bx(.25,RH,RD,mStone,{y:RH/2,x: RW/2,cs:false,rs:true}));  // right
+
+// Hebrew inscriptions on back wall
+a(bx(7,.01,.06,mHeb,{y:2.8,z:-RD/2+.14,x:0}));
+a(bx(5.5,.01,.05,mHeb,{y:4.0,z:-RD/2+.14,x:0}));
+
+// ── Gothic pillars (4, slender) ─────────────────────────────────────
+for(const [px,pz] of [[-3,2],[3,2],[-3,-3],[3,-3]]){
+  a(bx(.38,.10,.38,mStone,{x:px,y:.05,z:pz}));             // plinth base (sits on floor)
+  a(bx(.32,.08,.32,mStone,{x:px,y:.14,z:pz}));             // plinth top step
+  const shaftH=RH-.55;
+  a(cy(.13,.15,shaftH,8,mStone,{x:px,y:shaftH/2+.18,z:pz})); // shaft (starts at y=.18)
+  a(bx(.28,.18,.28,mStone,{x:px,y:RH-.42,z:pz}));          // capital mid
+  a(bx(.34,.12,.34,mStone,{x:px,y:RH-.24,z:pz}));          // capital top
+}
+// Cross-ribs between pillars
+function archRib(x1,z1,x2,z2){
+  const dx=x2-x1,dz=z2-z1,len=Math.sqrt(dx*dx+dz*dz);
+  a(bx(len*.98,.12,.10,mStone,{x:(x1+x2)/2,y:RH-.18,z:(z1+z2)/2,ry:Math.atan2(dx,dz)}));
+}
+archRib(-3,-3,3,-3); archRib(-3,2,3,2);
+archRib(-3,-3,-3,2); archRib(3,-3,3,2);
+archRib(-5,-6,-3,2); archRib(5,-6,3,2);
+// Keystone boss
+a(sp(.10,8,mGold,{y:RH-.12,z:-.5}));
+a(sp(.10,8,mGold,{y:RH-.12,z: 2.0}));
+
+// ── Windows (lancet) ────────────────────────────────────────────────
+function winTex(c1,c2){
+  const wt=tex(64,128,(ctx,w,h)=>{
+    const g=ctx.createLinearGradient(0,0,0,h);
+    g.addColorStop(0,c1); g.addColorStop(1,c2);
+    ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle='rgba(15,10,5,.75)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(w/2,0); ctx.lineTo(w/2,h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,h*.5); ctx.lineTo(w,h*.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,h*.25); ctx.lineTo(w,h*.25); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,h*.75); ctx.lineTo(w,h*.75); ctx.stroke();
+  });
+  return new THREE.MeshStandardMaterial({map:wt,transparent:true,opacity:.80,
+    side:THREE.DoubleSide,emissive:new THREE.Color(c1).multiplyScalar(.35),emissiveIntensity:.5});
+}
+const wm1=winTex('#ffd740','#d49b1e');
+const wm2=winTex('#a0d7ff','#5aaade');
+
+// Right wall — warm sun (wider, taller) — between shelf and door
+for(const wz of [1.5, 3.5]){
+  a(bx(.04,2.6,1.15,wm1,{x:RW/2-.13,y:3.8,z:wz,cs:false}));
+  a(bx(.04,.70,.85,wm1,{x:RW/2-.13,y:5.45,z:wz,cs:false}));
+}
+// Left wall — cool fill (wider, taller)
+for(const wz of [-2,1.5]){
+  a(bx(.04,2.2,.95,wm2,{x:-RW/2+.13,y:3.7,z:wz,cs:false}));
+  a(bx(.04,.60,.70,wm2,{x:-RW/2+.13,y:5.1,z:wz,cs:false}));
+}
+
+// ── Light rays (god-rays) ────────────────────────────────────────────
+const rayMat=new THREE.MeshStandardMaterial({color:0xffe8a0,transparent:true,
+  opacity:.028,side:THREE.DoubleSide,emissive:0xffe8a0,emissiveIntensity:.04});
+for(const [rx,ry,rz,rrot] of [
+  [3.8,3.2,-3.5,.16],[3.8,3.0,.5,.16],[3.5,3.5,-2.0,.12]]){
+  a(bx(.45,3.5,.01,rayMat,{x:rx,y:ry,z:rz,rz:rrot,cs:false,rs:false}));
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// BOOKSHELVES — 4 large shelving units filling walls
+// ══════════════════════════════════════════════════════════════════════
+const BOOK_COLORS=[
+  0x8B2a20,0x2a3e78,0x28502a,0x6a3808,0x503060,
+  0x784018,0x1a3858,0x4a6030,0x702828,0x285050,
+  0x604828,0x384870,0x6a3828,0x285838,0x704040
+];
+
+function book(x,y,z,w,h,d,col,tilt=0){
+  const bm=new THREE.MeshStandardMaterial({color:col,roughness:.86,metalness:0});
+  a(bx(w,h,d,bm,{x,y,z,ry:tilt}));
+  // Gold top edge
+  const gm=new THREE.MeshStandardMaterial({color:0xd0a820,roughness:.18,metalness:.85,
+    emissive:0x502808,emissiveIntensity:.12});
+  a(bx(w+.004,.012,d+.004,gm,{x,y:y+h/2-.004,z,ry:tilt}));
+  // Spine line
+  a(bx(.008,h*.85,d*.98,gm,{x:x-w/2+.004,y,z,ry:tilt}));
+}
+
+// ── Open bookcase — looks like shelves not a wardrobe ─────────────────
+// All shelves are placed in WORLD space directly (no rotation tricks).
+// Side-wall units use a separate function with axes swapped.
+
+const sm=new THREE.MeshStandardMaterial({map:tWood,color:0x5a3c1e,roughness:.88,metalness:0});
+
+// Fills a row of books on a shelf plank.
+// bookY = top surface of shelf plank, books stand on it.
+// Books run along worldAxis 'x' or 'z'.
+function fillShelfRow(startX,startZ,endX,endZ,bookY,bookDepth,axis){
+  const span=(axis==='x')?(endX-startX):(endZ-startZ);
+  const maxBH=0.34+Math.random()*.10;
+  let pos=0;
+  let idx=Math.floor(Math.random()*BOOK_COLORS.length);
+  while(pos<span-.04){
+    const bw=.068+Math.random()*.055;
+    if(pos+bw>span-.02)break;
+    const bh=maxBH*(0.75+Math.random()*.35);
+    const tilt=(Math.random()-.5)*.05;
+    const bmat=new THREE.MeshStandardMaterial({color:BOOK_COLORS[idx%BOOK_COLORS.length],roughness:.87,metalness:0});
+    const gmat=new THREE.MeshStandardMaterial({color:0xc0980e,roughness:.20,metalness:.85});
+    if(axis==='x'){
+      const bx_=startX+pos+bw/2;
+      a(bx(bw,bh,bookDepth,bmat,{x:bx_,y:bookY+bh/2,z:startZ,ry:tilt}));
+      // gold top edge + spine
+      a(bx(bw+.003,.010,bookDepth+.003,gmat,{x:bx_,y:bookY+bh-.003,z:startZ}));
+    } else {
+      const bz_=startZ+pos+bw/2;
+      a(bx(bookDepth,bh,bw,bmat,{x:startX,y:bookY+bh/2,z:bz_,ry:tilt}));
+      a(bx(bookDepth+.003,.010,bw+.003,gmat,{x:startX,y:bookY+bh-.003,z:bz_}));
+    }
+    pos+=bw+.004+Math.random()*.007;
+    idx++;
+  }
+  // Occasional lying scroll on top of row
+  if(Math.random()>.55){
+    const mid=span*.3+Math.random()*span*.4;
+    const scrollMat=new THREE.MeshStandardMaterial({map:tParch,color:0xd0b858,roughness:.7});
+    if(axis==='x'){
+      const sx=startX+mid;
+      a(cy(.028,.028,.28,10,scrollMat,{x:sx,y:bookY+maxBH+.032,z:startZ,rx:Math.PI/2}));
+      a(cy(.036,.036,.013,10,mGold,{x:sx,y:bookY+maxBH+.032,z:startZ-.14,rx:Math.PI/2}));
+      a(cy(.036,.036,.013,10,mGold,{x:sx,y:bookY+maxBH+.032,z:startZ+.14,rx:Math.PI/2}));
+    } else {
+      const sz=startZ+mid;
+      a(cy(.028,.028,.28,10,scrollMat,{x:startX,y:bookY+maxBH+.032,z:sz,rx:Math.PI/2,ry:Math.PI/2}));
+      a(cy(.036,.036,.013,10,mGold,{x:startX-.14,y:bookY+maxBH+.032,z:sz,rx:Math.PI/2,ry:Math.PI/2}));
+      a(cy(.036,.036,.013,10,mGold,{x:startX+.14,y:bookY+maxBH+.032,z:sz,rx:Math.PI/2,ry:Math.PI/2}));
+    }
+  }
+}
+
+// BACK WALL bookcases — books run along X axis
+function backWallCase(cx,cz,nShelves,W,D){
+  const shelfH=0.50;
+  const totalH=nShelves*shelfH+.08;
+  const postW=.055, postD=D+.03;
+  // Two slim vertical posts (sides only, no full panel)
+  a(bx(postW,totalH,postD,sm,{x:cx-W/2-postW/2,y:totalH/2,z:cz}));
+  a(bx(postW,totalH,postD,sm,{x:cx+W/2+postW/2,y:totalH/2,z:cz}));
+  // Horizontal shelf planks
+  for(let s=0;s<=nShelves;s++){
+    const sy=s*shelfH+.04;
+    a(bx(W+postW*2,.04,D+.02,sm,{x:cx,y:sy,z:cz}));
+    if(s<nShelves){
+      fillShelfRow(cx-W/2+.02,cz-D*.35, cx+W/2-.02,cz-D*.35, sy+.020, D*.68,'x');
+    }
+  }
+}
+
+// SIDE WALL bookcases — books run along Z axis
+function sideWallCase(cx,cz,nShelves,W,D,flip=1){
+  const shelfH=0.50;
+  const totalH=nShelves*shelfH+.08;
+  const postW=D+.03, postD=.055;
+  // Two slim vertical posts (along Z)
+  a(bx(postW,totalH,postD,sm,{x:cx,y:totalH/2,z:cz-W/2-postD/2}));
+  a(bx(postW,totalH,postD,sm,{x:cx,y:totalH/2,z:cz+W/2+postD/2}));
+  // Shelf planks
+  for(let s=0;s<=nShelves;s++){
+    const sy=s*shelfH+.04;
+    a(bx(D+.02,.04,W+postD*2,sm,{x:cx,y:sy,z:cz}));
+    if(s<nShelves){
+      fillShelfRow(cx+D*.35*flip,cz-W/2+.02, cx+D*.35*flip,cz+W/2-.02, sy+.020, D*.68,'z');
+    }
+  }
+}
+
+// BACK WALL — two wide tall cases
+backWallCase(-2.4,-RD/2+.17, 9, 2.8, .26);
+backWallCase( 2.4,-RD/2+.17, 9, 2.8, .26);
+
+// LEFT WALL — two cases
+sideWallCase(-RW/2+.16,-3.2, 8, 2.2, .24,-1);
+sideWallCase(-RW/2+.16, .6,  8, 2.2, .24,-1);
+
+// RIGHT WALL — one case
+sideWallCase(RW/2-.16,-2.8, 6, 1.8, .22, 1);
+
+// ══════════════════════════════════════════════════════════════════════
+// CENTRAL WORK TABLE
+// ══════════════════════════════════════════════════════════════════════
+function tableLegs(x,z,w,d,h=.88){
+  const lm=new THREE.MeshStandardMaterial({map:tWood,color:0x7a5030,roughness:.88,metalness:0});
+  for(const [lx,lz] of [[w/2-.1,d/2-.1],[-(w/2-.1),d/2-.1],
+                          [w/2-.1,-(d/2-.1)],[-(w/2-.1),-(d/2-.1)]]){
+    a(cy(.048,.055,h,6,lm,{x:x+lx,y:h/2,z:z+lz}));
+  }
+  // Cross stretchers
+  a(bx(w-.24,.035,.042,lm,{x,y:h*.3,z:z+(d/2-.1)}));
+  a(bx(w-.24,.035,.042,lm,{x,y:h*.3,z:z-(d/2-.1)}));
+  a(bx(.042,.035,d-.24,lm,{x:x+(w/2-.1),y:h*.3,z}));
+  a(bx(.042,.035,d-.24,lm,{x:x-(w/2-.1),y:h*.3,z}));
+  // Table top
+  const tm=new THREE.MeshStandardMaterial({map:tWood,color:0x8a6040,roughness:.80,metalness:0});
+  a(bx(w,.055,d,tm,{x,y:h+.028,z}));
+  return h+.055;
+}
+
+const tableTop=tableLegs(0,1.2, 3.8,0.7);
+
+// Open scroll on table — flat, natural curl only at rolled ends
+const scrollGeo=new THREE.PlaneGeometry(1.1,.72,10,6);
+{const p=scrollGeo.attributes.position;
+ for(let i=0;i<p.count;i++){
+   const xn=p.getX(i)/.55;
+   const curl=Math.abs(xn)>.72 ? Math.pow((Math.abs(xn)-.72)/.28,2)*.022 : 0;
+   p.setZ(i, curl);
+ }
+ scrollGeo.computeVertexNormals();}
+const scrollFace=new THREE.Mesh(scrollGeo,mParch);
+scrollFace.position.set(.2, tableTop+.001, .85);
+scrollFace.rotation.x=-Math.PI/2;
+scrollFace.castShadow=true; scrollFace.receiveShadow=true;
+G.add(scrollFace);
+
+// Scroll rods — rest ON table surface (rod centre = tableTop + rod radius .018)
+const rdm=new THREE.MeshStandardMaterial({color:0x5c3818,roughness:.6,metalness:0});
+for(const sx of [-.55,.55]){
+  a(cy(.018,.018,.73,8,rdm,{x:.2+sx,y:tableTop+.019,z:.85,rx:Math.PI/2}));
+  a(cy(.030,.030,.016,8,mGold,{x:.2+sx,y:tableTop+.019,z:.85-.365,rx:Math.PI/2}));
+  a(cy(.030,.030,.016,8,mGold,{x:.2+sx,y:tableTop+.019,z:.85+.365,rx:Math.PI/2}));
+}
+
+// Books stacked on table — y computed correctly from tableTop
+{
+  const cols=[0x8B2a20,0x284060,0x28502a];
+  const heights=[.060,.058,.056];
+  let stackY=tableTop;
+  for(let i=0;i<3;i++){
+    const bmat=new THREE.MeshStandardMaterial({color:cols[i],roughness:.86,metalness:0});
+    a(bx(.42,heights[i],.30,bmat,{x:-.65,y:stackY+heights[i]/2,z:1.25,ry:(Math.random()-.5)*.05}));
+    stackY+=heights[i];
+  }
+}
+
+// Inkwell + quill — inkwell base sits on tableTop
+a(cy(.042,.055,.065,8,mIron,{x:.8,y:tableTop+.033,z:1.5}));
+{const qg=new THREE.PlaneGeometry(.028,.38);
+ const qm=new THREE.MeshStandardMaterial({color:0xf8f0c0,roughness:.8,side:THREE.DoubleSide});
+ const q=new THREE.Mesh(qg,qm);
+ q.position.set(.85,tableTop+.22,1.5); q.rotation.set(.35,.3,.55); G.add(q);}
+
+// Candle on table
+function candle(x,y,z,h=.18){
+  // Holder plate (sits on surface)
+  a(cy(.042,.048,.012,10,mGold,{x,y:y+.006,z}));
+  const waxMat=new THREE.MeshStandardMaterial({color:0xe8d8a0,roughness:.8,metalness:0});
+  a(cy(.022,.025,h,8,waxMat,{x,y:y+.012+h/2,z}));
+  // Flame
+  const fm=new THREE.MeshStandardMaterial({color:0xffc040,emissive:0xff8000,
+    emissiveIntensity:1.4,transparent:true,opacity:.90,roughness:1});
+  a(sp(.014,6,fm,{x,y:y+.012+h+.018,z}));
+}
+candle(-.2,tableTop,1.8);
+candle( .9,tableTop, .5);
+
+// Small shelf/stand for equipment
+tableLegs(-3.5, 1.5, 1.0,.6, .78);
+
+// ══════════════════════════════════════════════════════════════════════
+// ALCHEMICAL VESSELS on side shelf
+// ══════════════════════════════════════════════════════════════════════
+function flask(x,y,z,sc=1,col=0x90d0a0){
+  const fm=new THREE.MeshPhysicalMaterial({color:col,roughness:.04,metalness:0,
+    transmission:.72,ior:1.50,transparent:true,opacity:.55,
+    emissive:col,emissiveIntensity:.05});
+  a(sp(.085*sc,12,fm,{x,y:y+.10*sc,z}));
+  a(cy(.020*sc,.042*sc,.12*sc,8,fm,{x,y:y+.23*sc,z}));
+  a(cy(.024*sc,.020*sc,.020*sc,8,fm,{x,y:y+.30*sc,z}));
+  const rm=new THREE.MeshStandardMaterial({color:0x4a3010,roughness:.75,metalness:0});
+  a(cy(.10*sc,.07*sc,.030*sc,8,rm,{x,y:y+.015*sc,z}));
+}
+const sShelfY=.78+.028;
+flask(-3.5,sShelfY,1.8,1.0,0x90d8b0);
+flask(-3.2,sShelfY,1.5,0.8,0xd4a840);
+flask(-2.9,sShelfY,1.8,0.9,0x8ab0d8);
+flask(-3.6,sShelfY,1.5,0.7,0xd090a0);
+
+// Ceramic pot
+a(cy(.08,.065,.14,10,new THREE.MeshStandardMaterial({color:0x7a5030,roughness:.90,metalness:0}),
+  {x:-3.5,y:sShelfY+.072,z:1.2}));
+a(cy(.09,.09,.014,10,mGold,{x:-3.5,y:sShelfY+.148,z:1.2}));
+
+// ══════════════════════════════════════════════════════════════════════
+// MENORAH (7-branch, elegant)
+// ══════════════════════════════════════════════════════════════════════
+function menorah(cx,cz){
+  const scale=0.85;
+  // Base
+  a(bx(.45*scale,.04,.18*scale,mGold,{x:cx,y:.02,z:cz}));
+  a(cy(.048*scale,.062*scale,.10*scale,8,mGold,{x:cx,y:.075*scale,z:cz}));
+  // Central shaft
+  a(cy(.018*scale,.022*scale,.9*scale,8,mGold,{x:cx,y:.55*scale,z:cz}));
+  // 6 side branches (3 each side)
+  const branchData=[
+    [-1,.60,.55],[-2,.50,.75],  // left inner, outer
+    [ 1,.60,.55],[ 2,.50,.75],  // right inner, outer
+  ];
+  for(const [side,armH,branchH] of branchData){
+    const ox=side*.20*scale;
+    a(bx(Math.abs(ox)*2,.018*scale,.018*scale,mGold,{x:cx+ox/2,y:armH*scale,z:cz}));
+    a(cy(.014*scale,.014*scale,(branchH-.52)*scale,6,mGold,{x:cx+ox,y:((armH+branchH)/2-.02)*scale,z:cz}));
+  }
+  // Candle flames at each arm tip + center
+  const flamePts=[
+    [cx,1.15*scale],[cx-.40*scale,.88*scale],[cx-.20*scale,.98*scale],
+    [cx+.20*scale,.98*scale],[cx+.40*scale,.88*scale]
+  ];
+  for(const [fx,fy] of flamePts){
+    const fm=new THREE.MeshStandardMaterial({color:0xffc040,emissive:0xff7800,
+      emissiveIntensity:1.5,transparent:true,opacity:.88,roughness:1});
+    a(sp(.013*scale,6,fm,{x:fx,y:fy,z:cz}));
+  }
+}
+menorah(-4.2,-5.6);
+menorah( 4.2,-5.6);
+
+// ══════════════════════════════════════════════════════════════════════
+// CANDLES around room (wall sconces)
+// ══════════════════════════════════════════════════════════════════════
+function wallSconce(x,y,z,faceRight=true){
+  const arm=bx(.22,.022,.022,mGold,{x:x+(faceRight?.11:-.11),y,z});
+  G.add(arm);
+  const cp=faceRight?x+.22:x-.22;
+  a(cy(.018,.022,.10,8,new THREE.MeshStandardMaterial({color:0xe8d8a0,roughness:.8}),
+    {x:cp,y:y+.05,z}));
+  const fm=new THREE.MeshStandardMaterial({color:0xffc040,emissive:0xff8000,
+    emissiveIntensity:1.3,transparent:true,opacity:.90,roughness:1});
+  a(sp(.011,6,fm,{x:cp,y:y+.12,z}));
+}
+wallSconce(-RW/2+.16,3.2,-4.5,true);
+wallSconce(-RW/2+.16,3.2, -.5,true);
+wallSconce( RW/2-.16,3.2,-5.0,false);
+wallSconce( RW/2-.16,3.2,  .0,false);
+
+// ══════════════════════════════════════════════════════════════════════
+// DUST MOTES
+// ══════════════════════════════════════════════════════════════════════
+const moteGeo=new THREE.BufferGeometry();
+const MC=220;
+const mPos=new Float32Array(MC*3), mPhase=new Float32Array(MC);
+for(let i=0;i<MC;i++){
+  mPos[i*3]  =(Math.random()-.5)*8+2.5;
+  mPos[i*3+1]=.5+Math.random()*5;
+  mPos[i*3+2]=(Math.random()-.5)*10;
+  mPhase[i]=Math.random()*Math.PI*2;
+}
+moteGeo.setAttribute('position',new THREE.BufferAttribute(mPos,3));
+const motes=new THREE.Points(moteGeo,
+  new THREE.PointsMaterial({color:0xffe8b0,size:.018,sizeAttenuation:true,transparent:true,opacity:.65}));
+G.add(motes);
+
+// ══════════════════════════════════════════════════════════════════════
+// LIGHTS
+// ══════════════════════════════════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x5a3c18,.62));
+
+// Main sun — warm golden from upper right
+const sun=new THREE.DirectionalLight(0xffe8a0,2.4);
+sun.position.set(10,9,-2);
+sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-8; sun.shadow.camera.right=8;
+sun.shadow.camera.top=8;   sun.shadow.camera.bottom=-4;
+sun.shadow.camera.far=35;  sun.shadow.bias=-.0008;
+scene.add(sun);
+
+// Cool fill from left
+const fill=new THREE.DirectionalLight(0x8ab8e8,.38);
+fill.position.set(-8,6,2); scene.add(fill);
+
+// Warm floor bounce
+const bounce=new THREE.DirectionalLight(0xc89040,.20);
+bounce.position.set(0,-4,4); scene.add(bounce);
+
+// Menorah warmth
+for(const [lx,lz] of [[-4.2,-5.6],[4.2,-5.6]]){
+  const pl=new THREE.PointLight(0xff9820,.9,4.5);
+  pl.position.set(lx,1.2,lz); scene.add(pl);
+}
+// Candle lights on table
+const tl=new THREE.PointLight(0xffcf80,.55,3.5);
+tl.position.set(0,2.2,1.5); scene.add(tl);
+// Sconce lights
+for(const [lx,ly,lz] of [[-4.2,3.4,-4.5],[-4.2,3.4,-.5],[4.2,3.4,-5.0],[4.2,3.4,.0]]){
+  const sl=new THREE.PointLight(0xffb840,.40,3.0);
+  sl.position.set(lx,ly,lz); scene.add(sl);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// DOOR in front wall (opening the camera walks through)
+// Front wall is at z=+6. Door: width 1.1, height 2.4, centred x=0
+// We replace the solid front wall with two side pieces + lintel above door
+// ══════════════════════════════════════════════════════════════════════
+// Remove solid front wall (already added above) — rebuild with gap
+// (The front wall bx added earlier stays but we overlay door gap with
+//  two flanking pieces and lintel so there's a real opening)
+const DW=1.1, DH=2.4;  // door width, height
+// Left flank
+a(bx((RW-DW)/2,RH,.25,mStone,{y:RH/2,z:RD/2,x:-(DW/2+(RW-DW)/4),cs:false,rs:true}));
+// Right flank
+a(bx((RW-DW)/2,RH,.25,mStone,{y:RH/2,z:RD/2,x: (DW/2+(RW-DW)/4),cs:false,rs:true}));
+// Lintel above door
+a(bx(DW+.04,RH-DH,.25,mStone,{y:DH+(RH-DH)/2,z:RD/2,cs:false,rs:true}));
+// Door frame (stone surround)
+const dfm=new THREE.MeshStandardMaterial({color:0xc8b888,roughness:.88,metalness:0});
+a(bx(.12,DH+.12,.3,dfm,{x:-DW/2-.06,y:DH/2,z:RD/2}));  // left jamb
+a(bx(.12,DH+.12,.3,dfm,{x: DW/2+.06,y:DH/2,z:RD/2}));  // right jamb
+a(bx(DW+.28,.14,.3,dfm,{y:DH+.07,z:RD/2}));             // arch lintel
+
+// ── CAMERA ENTRY ANIMATION ───────────────────────────────────────────
+// Phase 0 (0–2.4s): camera flies from outside through door into room
+// Phase 1 (2.4s+):  normal mouse-drag orbit
+
+const ENTRY_DUR = 2.4;  // seconds — short!
+
+// Entry path: start outside (z=8.5, y=1.6), end inside (z=3.8, y=1.7)
+const entryStart = new THREE.Vector3(0, 1.55, 9.2);
+const entryEnd   = new THREE.Vector3(0, 1.70, 3.8);
+// Look-at travels from door threshold to room centre
+const lookStart  = new THREE.Vector3(0, 1.65, 6.0);
+const lookEnd    = new THREE.Vector3(0, 1.70, 0);
+
+let entryDone = false;
+
+let camYaw=0, camPitch=-.10, camDist=3.8;
+let pDown=false, lx=0, ly=0;
+
+R.domElement.addEventListener('pointerdown',e=>{if(!entryDone)return;pDown=true;lx=e.clientX;ly=e.clientY;});
+window.addEventListener('pointerup',()=>pDown=false);
+window.addEventListener('pointermove',e=>{
+  if(!pDown||!entryDone)return;
+  camYaw  -=(e.clientX-lx)*.005;
+  camPitch-=(e.clientY-ly)*.004;
+  camPitch=Math.max(-.22,Math.min(.45,camPitch));
+  lx=e.clientX; ly=e.clientY;
+});
+window.addEventListener('wheel',e=>{
+  if(!entryDone)return;
+  camDist+=e.deltaY*.010; camDist=Math.max(2.5,Math.min(9,camDist));
+},{passive:true});
+R.domElement.addEventListener('touchstart',e=>{if(!entryDone)return;pDown=true;lx=e.touches[0].clientX;ly=e.touches[0].clientY;},{passive:true});
+window.addEventListener('touchend',()=>pDown=false);
+window.addEventListener('touchmove',e=>{
+  if(!pDown||!entryDone)return;
+  camYaw  -=(e.touches[0].clientX-lx)*.005;
+  camPitch-=(e.touches[0].clientY-ly)*.004;
+  camPitch=Math.max(-.22,Math.min(.45,camPitch));
+  lx=e.touches[0].clientX; ly=e.touches[0].clientY;
+},{passive:true});
+
+// Ease function: smooth step
+function ease(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+
+const lookAt=new THREE.Vector3(0,1.7,0);
+const clock=new THREE.Clock();
+
+function animate(){
+  requestAnimationFrame(animate);
+  const t=clock.getElapsedTime();
+
+  // ── Entry fly-through ───────────────────────────────────────────────
+  if(!entryDone){
+    const n=Math.min(t/ENTRY_DUR,1);
+    const e=ease(n);
+    cam.position.lerpVectors(entryStart,entryEnd,e);
+    const lv=new THREE.Vector3().lerpVectors(lookStart,lookEnd,e);
+    cam.lookAt(lv);
+    if(n>=1){
+      entryDone=true;
+      // Snap orbit state to match final camera pos
+      camYaw=0; camPitch=-.10; camDist=3.8;
+    }
+    R.render(scene,cam); return;
+  }
+
+  // ── Normal orbit (clamp to inside room) ────────────────────────────
+  const cx = Math.sin(camYaw)*camDist;
+  const cz = Math.cos(camYaw)*camDist;
+  const cy = 1.7+Math.sin(camPitch)*camDist*.75;
+  // Clamp to room bounds (with .4 margin from walls)
+  cam.position.set(
+    Math.max(-RW/2+.4, Math.min(RW/2-.4, cx)),
+    Math.max(.4, Math.min(RH-.3, cy)),
+    Math.max(-RD/2+.4, Math.min(RD/2-.4, cz))
+  );
+  cam.lookAt(lookAt);
+
+  // Drift motes
+  const mp=motes.geometry.attributes.position;
+  for(let i=0;i<MC;i++){
+    mp.setY(i,mp.getY(i)+Math.sin(t*.28+mPhase[i])*.0007);
+    mp.setX(i,mp.getX(i)+Math.cos(t*.19+mPhase[i+1<MC?i+1:0])*.0004);
+    if(mp.getY(i)>6.2)mp.setY(i,.8);
+    if(mp.getY(i)<.4)mp.setY(i,5.0);
+  }
+  mp.needsUpdate=true;
+
+  R.render(scene,cam);
+}
+animate();
+
+window.addEventListener('resize',()=>{
+  cam.aspect=innerWidth/innerHeight;
+  cam.updateProjectionMatrix();
+  R.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>

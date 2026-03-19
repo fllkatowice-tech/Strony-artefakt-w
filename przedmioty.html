@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garnek Kuchenny</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #080604;
+    width: 100vw; height: 100vh;
+    overflow: hidden;
+    font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+  }
+  canvas { display: block; position: fixed; inset: 0; }
+  #title {
+    position: fixed; top: 22px; left: 50%;
+    transform: translateX(-50%);
+    color: #d4956a;
+    font-size: clamp(12px, 1.1vw, 16px);
+    letter-spacing: 7px; text-transform: uppercase;
+    text-shadow: 0 0 30px #a05030bb, 0 0 70px #80300844;
+    white-space: nowrap; opacity: 0;
+    animation: fadeIn 2.5s ease 1.2s forwards;
+    pointer-events: none; z-index: 10;
+  }
+  #subtitle {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%);
+    color: #6a4030;
+    font-size: clamp(8px, 0.7vw, 10px);
+    letter-spacing: 5px; text-transform: uppercase;
+    white-space: nowrap; opacity: 0;
+    animation: fadeIn 2s ease 3.5s forwards;
+    pointer-events: none; z-index: 10;
+  }
+  @keyframes fadeIn { to { opacity: 1; } }
+</style>
+</head>
+<body>
+<div id="title">❧ &nbsp; G A R N E K &nbsp; K U C H E N N Y &nbsp; ❧</div>
+<div id="subtitle">CERAMIKA REDUKCYJNA · POLSKA · XVII WIEK</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════════════════════════
+// RENDERER / SCENE / CAMERA
+// ══════════════════════════════════════════════════════════════════════
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled   = true;
+renderer.shadowMap.type      = THREE.PCFSoftShadowMap;
+renderer.toneMapping         = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.45;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x080604);
+scene.fog        = new THREE.FogExp2(0x080604, 0.035);
+
+const camera = new THREE.PerspectiveCamera(36, innerWidth / innerHeight, 0.01, 200);
+camera.position.set(0, 0.8, 14);
+camera.lookAt(0, 0, 0);
+
+// ══════════════════════════════════════════════════════════════════════
+// TEXTURE – reduction-fired earthenware
+// ══════════════════════════════════════════════════════════════════════
+function makeEarthTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const ctx = c.getContext('2d');
+
+  const g = ctx.createRadialGradient(256, 200, 15, 256, 256, 290);
+  g.addColorStop(0,   '#5a4838');
+  g.addColorStop(0.3, '#3e3028');
+  g.addColorStop(0.7, '#282018');
+  g.addColorStop(1,   '#181208');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 512, 512);
+
+  // Firing clouds (reduction marks)
+  for (let i = 0; i < 14; i++) {
+    const x = Math.random()*512, y = Math.random()*512;
+    const rg = ctx.createRadialGradient(x, y, 5, x, y, 40+Math.random()*60);
+    rg.addColorStop(0, `rgba(${110+Math.random()*60},${65+Math.random()*40},${30+Math.random()*30},0.35)`);
+    rg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rg; ctx.fillRect(0, 0, 512, 512);
+  }
+
+  // Surface grit & inclusions
+  for (let i = 0; i < 600; i++) {
+    ctx.beginPath();
+    ctx.arc(Math.random()*512, Math.random()*512, 0.3+Math.random()*1.8, 0, Math.PI*2);
+    ctx.fillStyle = `rgba(${65+Math.random()*55},${50+Math.random()*40},${40+Math.random()*30},${0.12+Math.random()*0.28})`;
+    ctx.fill();
+  }
+
+  // Wheel-throwing horizontal lines
+  for (let i = 0; i < 12; i++) {
+    const y = 20 + i*42;
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(512, y);
+    ctx.strokeStyle = `rgba(80,60,40,${0.06+Math.random()*0.10})`;
+    ctx.lineWidth = 0.5+Math.random()*1.5; ctx.stroke();
+  }
+
+  // Soot smudges (lower half)
+  for (let i = 0; i < 8; i++) {
+    const x = Math.random()*512, y = 300+Math.random()*200;
+    const rg = ctx.createRadialGradient(x, y, 2, x, y, 30+Math.random()*50);
+    rg.addColorStop(0, 'rgba(10,8,5,0.5)');
+    rg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = rg; ctx.fillRect(0, 0, 512, 512);
+  }
+
+  return new THREE.CanvasTexture(c);
+}
+
+const earthTex = makeEarthTex();
+
+// ══════════════════════════════════════════════════════════════════════
+// MATERIALS
+// ══════════════════════════════════════════════════════════════════════
+const MAT = {
+  earth: new THREE.MeshStandardMaterial({
+    map: earthTex, color: 0x3e3028,
+    roughness: 0.92, metalness: 0.0,
+    emissive: 0x080402, emissiveIntensity: 0.05,
+  }),
+  earthDark: new THREE.MeshStandardMaterial({
+    map: earthTex, color: 0x221810,
+    roughness: 0.96, metalness: 0.0,
+  }),
+  earthRed: new THREE.MeshStandardMaterial({
+    map: earthTex, color: 0x6a3018,
+    roughness: 0.90, metalness: 0.0,
+    emissive: 0x1a0804, emissiveIntensity: 0.08,
+  }),
+  earthSoot: new THREE.MeshStandardMaterial({
+    map: earthTex, color: 0x141008,
+    roughness: 0.98, metalness: 0.0,
+  }),
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// LIGHTS
+// ══════════════════════════════════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x201008, 0.5));
+
+const keyLight = new THREE.SpotLight(0xffe8c0, 75, 28, Math.PI/7, 0.25, 1.4);
+keyLight.position.set(4, 9, 7);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048, 2048);
+keyLight.shadow.bias = -0.001;
+scene.add(keyLight, keyLight.target);
+
+const fillLight = new THREE.PointLight(0xff7830, 16, 18, 2);
+fillLight.position.set(-5, 2, 3);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0xd09040, 1.0);
+rimLight.position.set(-3, 4, -8);
+scene.add(rimLight);
+
+const topLight = new THREE.PointLight(0xffd080, 12, 16, 2);
+topLight.position.set(0, 8, 2);
+scene.add(topLight);
+
+// ══════════════════════════════════════════════════════════════════════
+// GEOMETRY HELPERS
+// ══════════════════════════════════════════════════════════════════════
+function mk(geo, mat, {x=0,y=0,z=0,rx=0,ry=0,rz=0}={}) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x,y,z); m.rotation.set(rx,ry,rz);
+  m.castShadow = m.receiveShadow = true;
+  return m;
+}
+function lathe(pts, mat, segs=64, opts={}) {
+  return mk(new THREE.LatheGeometry(pts.map(([x,y])=>new THREE.Vector2(x,y)), segs), mat, opts);
+}
+function tor(R,r,ns,nt,mat,opts={}) { return mk(new THREE.TorusGeometry(R,r,ns,nt), mat, opts); }
+
+// ══════════════════════════════════════════════════════════════════════
+// GARNEK KUCHENNY – ceramika redukcyjna, Polska XVII w.
+// ══════════════════════════════════════════════════════════════════════
+function buildGarnek() {
+  const g = new THREE.Group();
+
+  // Main body – globular belly, shoulder, neck, everted rim
+  g.add(lathe([
+    [0.00, -1.40],
+    [0.35, -1.38],
+    [0.65, -1.25],
+    [0.92, -0.98],
+    [1.10, -0.58],
+    [1.18, -0.08],
+    [1.16,  0.42],
+    [1.06,  0.88],
+    [0.90,  1.22],
+    [0.72,  1.46],
+    [0.58,  1.56],
+    [0.48,  1.60],
+    // neck
+    [0.46,  1.68],
+    [0.50,  1.76],
+    // everted rim
+    [0.58,  1.84],
+    [0.66,  1.90],
+    [0.70,  1.94],
+    [0.68,  1.98],
+    [0.58,  1.98],
+    [0.48,  1.94],
+    [0.46,  1.86],
+  ], MAT.earth, 64));
+
+  // Inner neck visible from above
+  g.add(lathe([
+    [0.00, 1.68],[0.16, 1.68],[0.30, 1.70],[0.42, 1.76],[0.44, 1.86],
+  ], MAT.earthDark, 48));
+
+  // Soot darkening – lower body separate layer
+  g.add(lathe([
+    [0.00, -1.40],[0.34, -1.38],[0.63, -1.24],
+    [0.88, -0.98],[1.06, -0.60],[1.14, -0.20],
+    [1.10,  0.10],
+  ], MAT.earthSoot, 52));
+
+  // Flat-ish base with slight foot ring
+  g.add(lathe([
+    [0.00, -1.42],[0.28, -1.42],[0.32, -1.48],
+    [0.30, -1.56],[0.20, -1.58],[0.00, -1.58],
+  ], MAT.earthDark, 44));
+
+
+
+
+
+  return g;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// DUST PARTICLES
+// ══════════════════════════════════════════════════════════════════════
+function buildDust() {
+  const N = 110;
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(N*3);
+  const vel = [];
+  for (let i=0;i<N;i++) {
+    pos[i*3]   = (Math.random()-0.5)*18;
+    pos[i*3+1] = (Math.random()-0.5)*14;
+    pos[i*3+2] = (Math.random()-0.5)*9;
+    vel.push({
+      x: (Math.random()-0.5)*0.0022,
+      y:  0.0007+Math.random()*0.0022,
+      z: (Math.random()-0.5)*0.0016,
+    });
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  return {
+    pts: new THREE.Points(geo, new THREE.PointsMaterial({
+      color: 0xc07840, size: 0.020,
+      transparent: true, opacity: 0.28, sizeAttenuation: true,
+    })),
+    pos, vel, N,
+  };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ANIMATION STATE MACHINE
+// ══════════════════════════════════════════════════════════════════════
+class Animator {
+  constructor(target) {
+    this.target = target;
+    this.state  = 'appear';
+    this.elapsed = 0;
+    this.rotsDone = 0;
+    this.accum = 0;
+    target.scale.setScalar(0);
+    this.base = 0.80;
+    this.baseY = 0.42;
+    target.position.set(0, -6, 0);
+  }
+  update(dt) {
+    this.elapsed += dt;
+    const m = this.target;
+    if (this.state === 'appear') {
+      const t = Math.min(this.elapsed / 1.8, 1);
+      const e = t < 0.75 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3) / 2;
+      const b = t > 0.85 ? Math.sin((t-0.85)/0.15*Math.PI)*0.06 : 0;
+      m.scale.set(Math.min(e+b, 1.06) * this.base, Math.min(e+b, 1.06) * this.baseY, Math.min(e+b, 1.06) * this.base);
+      m.position.y = -6*(1-e)*(1-e);
+      m.rotation.y = (1-e)*Math.PI*0.8;
+      if (this.elapsed > 2.4) { this.state='wait'; this.elapsed=0; }
+
+    } else if (this.state === 'wait') {
+      m.scale.set(this.base, this.baseY, this.base);
+      m.position.y = Math.sin(this.elapsed*1.1)*0.025;
+      if (this.elapsed > 0.9) { this.state='rotate'; this.elapsed=0; }
+
+    } else if (this.state === 'rotate') {
+      m.rotation.y = this.accum + Math.min(this.elapsed/2.7, 1)*Math.PI*2;
+      m.position.y = Math.sin(this.elapsed*1.4)*0.02;
+      if (this.elapsed >= 2.7) {
+        this.accum += Math.PI*2; this.elapsed=0; this.rotsDone++;
+        if (this.rotsDone >= 2) { m.rotation.y=0; this.state='idle'; this.elapsed=0; }
+      }
+
+    } else {
+      m.position.y = Math.sin(this.elapsed*0.85)*0.09;
+      m.rotation.y += 0.004;
+      m.rotation.x  = Math.sin(this.elapsed*0.38)*0.055;
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ASSEMBLE & RUN
+// ══════════════════════════════════════════════════════════════════════
+const garnek  = buildGarnek();
+garnek.scale.set(0.80, 0.42, 0.80);
+scene.add(garnek);
+
+const dust    = buildDust();
+scene.add(dust.pts);
+
+const animator = new Animator(garnek);
+const clock    = new THREE.Clock();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t  = clock.elapsedTime;
+
+  fillLight.intensity = 14 + Math.sin(t*5.8)*2.5 + Math.sin(t*11.2)*1.2;
+  topLight.intensity  = 10 + Math.sin(t*4.1+0.9)*2;
+  keyLight.intensity  = 70 + Math.sin(t*3.7+0.4)*8;
+
+  for (let i=0; i<dust.N; i++) {
+    dust.pos[i*3]   += dust.vel[i].x;
+    dust.pos[i*3+1] += dust.vel[i].y;
+    dust.pos[i*3+2] += dust.vel[i].z;
+    if (dust.pos[i*3+1] > 8) {
+      dust.pos[i*3+1] = -6;
+      dust.pos[i*3]   = (Math.random()-0.5)*18;
+    }
+  }
+  dust.pts.geometry.attributes.position.needsUpdate = true;
+
+  animator.update(dt);
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>

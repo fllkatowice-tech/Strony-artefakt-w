@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Pieczęć Habsburgów</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; width:100vw; height:100vh; overflow:hidden; }
+canvas { display:block; }
+#title {
+  position:absolute; top:16px; left:50%; transform:translateX(-50%);
+  color:#c8a060; font-family:"Palatino Linotype",serif;
+  font-size:15px; letter-spacing:5px; text-transform:uppercase;
+  text-shadow:0 0 22px #8a4a18cc; white-space:nowrap;
+  opacity:0; animation:fin 2s ease 1.2s forwards;
+}
+#sub {
+  position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+  color:#5a3010; font-family:"Palatino Linotype",serif;
+  font-size:10px; letter-spacing:4px;
+  opacity:0; animation:fin 2s ease 2.5s forwards;
+}
+@keyframes fin { to{opacity:1;} }
+</style>
+</head>
+<body>
+<div id="title">✦ &nbsp; P I E C Z Ę Ć &nbsp; H A B S B U R G Ó W &nbsp; ✦</div>
+<div id="sub">SIGILLVM · DOMUS · HABSBURGENSIS · SACRI · ROMANI · IMPERII</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+var SEAL_IMG = 'data:image/png;base64,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';
+
+// ══════════════════════════════════════════════════════
+// SCENE
+// ══════════════════════════════════════════════════════
+var scene = new THREE.Scene();
+scene.background = new THREE.Color(0x060301);
+scene.fog = new THREE.FogExp2(0x060301, 0.028);
+
+var camera = new THREE.PerspectiveCamera(34, innerWidth/innerHeight, 0.01, 200);
+camera.position.set(0, 0, 9.5);
+camera.lookAt(0, 0, 0);
+
+var renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.35;
+document.body.appendChild(renderer.domElement);
+
+// ══════════════════════════════════════════════════════
+// WAX TEXTURE — front face with uploaded seal image
+// luminance → red-brown wax relief
+// ══════════════════════════════════════════════════════
+function buildSealTex(img, w, h) {
+  var cx=w/2, cy=h/2, R=w/2-6;
+
+  // Step 1: draw rotated image on offscreen canvas
+  var tmp=document.createElement("canvas"); tmp.width=w; tmp.height=h;
+  var tctx=tmp.getContext("2d");
+  tctx.fillStyle="#000"; tctx.fillRect(0,0,w,h);
+  tctx.save();
+  tctx.beginPath(); tctx.arc(cx,cy,R,0,Math.PI*2); tctx.clip();
+  tctx.translate(cx,cy);
+  var iw=img.naturalWidth||img.width, ih=img.naturalHeight||img.height;
+  var scale=Math.max((R*2)/iw,(R*2)/ih)*1.02;
+  tctx.drawImage(img,-iw*scale/2,-ih*scale/2,iw*scale,ih*scale);
+  tctx.restore();
+  var pd=tctx.getImageData(0,0,w,h);
+
+  // Step 2: map luminance → wax relief palette
+  var c=document.createElement("canvas"); c.width=w; c.height=h;
+  var ctx=c.getContext("2d");
+
+  // Deep crimson wax base radial gradient
+  var bg=ctx.createRadialGradient(cx-R*0.18,cy-R*0.22,4,cx,cy,R*1.08);
+  bg.addColorStop(0,"#c03018");
+  bg.addColorStop(0.2,"#a02010");
+  bg.addColorStop(0.5,"#7a1208");
+  bg.addColorStop(0.8,"#580a04");
+  bg.addColorStop(1,"#300400");
+  ctx.fillStyle=bg; ctx.fillRect(0,0,w,h);
+
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.clip();
+
+  // Luminance → wax palette with S-curve contrast
+  var out=ctx.createImageData(w,h);
+  var od=out.data;
+  for(var i=0;i<pd.data.length;i+=4){
+    var px=(i/4)%w, py=Math.floor((i/4)/w);
+    var dist=Math.sqrt((px-cx)*(px-cx)+(py-cy)*(py-cy));
+    if(dist>R){od[i+3]=0;continue;}
+    var lum=(pd.data[i]*0.299+pd.data[i+1]*0.587+pd.data[i+2]*0.114)/255;
+    // S-curve: push apart shadows and highlights for crisp relief
+    lum=lum<0.5?2*lum*lum:1-Math.pow(-2*lum+2,2)/2;
+    // Wax palette: recessed=dark red-brown, raised=pale amber-cream
+    od[i]  =Math.round(80 +lum*175); // R: 80→255
+    od[i+1]=Math.round(18 +lum*120); // G: 18→138
+    od[i+2]=Math.round(4  +lum*50);  // B: 4→54
+    od[i+3]=255;
+  }
+  ctx.putImageData(out,0,0);
+
+  // Directional relief highlight — upper-left light
+  ctx.globalCompositeOperation="overlay";
+  var hl=ctx.createLinearGradient(cx-R*0.7,cy-R*0.7,cx+R*0.5,cy+R*0.5);
+  hl.addColorStop(0,"rgba(255,200,140,0.42)");
+  hl.addColorStop(0.35,"rgba(200,100,60,0.15)");
+  hl.addColorStop(0.65,"rgba(40,5,0,0.18)");
+  hl.addColorStop(1,"rgba(20,0,0,0.40)");
+  ctx.fillStyle=hl; ctx.fillRect(0,0,w,h);
+  ctx.globalCompositeOperation="source-over";
+
+  // Wax surface: poured-flow noise patches
+  for(var n=0;n<200;n++){
+    var nx=Math.random()*w, ny=Math.random()*h, nr=4+Math.random()*18;
+    var ng=ctx.createRadialGradient(nx,ny,0,nx,ny,nr);
+    var b=Math.random()>0.5;
+    ng.addColorStop(0,b?"rgba(200,80,40,0.10)":"rgba(10,0,0,0.14)");
+    ng.addColorStop(1,"rgba(0,0,0,0)");
+    ctx.fillStyle=ng; ctx.fillRect(0,0,w,h);
+  }
+
+  // Concentric wax flow marks
+  for(var rr=14;rr<R-2;rr+=4){
+    ctx.beginPath(); ctx.arc(cx,cy,rr,0,Math.PI*2);
+    ctx.strokeStyle="rgba(180,60,20,"+(0.015+Math.abs(Math.sin(rr*0.4))*0.015)+")";
+    ctx.lineWidth=0.4; ctx.stroke();
+  }
+
+  // Edge vignette
+  var vig=ctx.createRadialGradient(cx,cy,R*0.4,cx,cy,R);
+  vig.addColorStop(0,"rgba(0,0,0,0)");
+  vig.addColorStop(0.65,"rgba(15,2,0,0.15)");
+  vig.addColorStop(1,"rgba(40,5,0,0.65)");
+  ctx.fillStyle=vig; ctx.fillRect(0,0,w,h);
+
+  ctx.restore();
+
+  // Raised rim — 3 rings like talar
+  ctx.beginPath(); ctx.arc(cx,cy,R+1,0,Math.PI*2);
+  ctx.strokeStyle="#140200"; ctx.lineWidth=5; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2);
+  ctx.strokeStyle="#8a1808"; ctx.lineWidth=9; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,R+0.5,0,Math.PI*2);
+  ctx.strokeStyle="#d04020"; ctx.lineWidth=3; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,R-5,0,Math.PI*2);
+  ctx.strokeStyle="rgba(30,4,0,0.70)"; ctx.lineWidth=2.5; ctx.stroke();
+
+  return new THREE.CanvasTexture(c);
+}
+
+// ══════════════════════════════════════════════════════
+// BACK FACE — plain wax (no image, just texture)
+// ══════════════════════════════════════════════════════
+function makeWaxBackTex(w, h) {
+  var cx=w/2, cy=h/2, R=w/2-6;
+  var c=document.createElement("canvas"); c.width=w; c.height=h;
+  var ctx=c.getContext("2d");
+
+  var bg=ctx.createRadialGradient(cx-R*0.15,cy-R*0.2,4,cx,cy,R*1.08);
+  bg.addColorStop(0,"#b83016");
+  bg.addColorStop(0.3,"#8a1a08");
+  bg.addColorStop(0.65,"#620e04");
+  bg.addColorStop(1,"#300400");
+  ctx.fillStyle=bg; ctx.fillRect(0,0,w,h);
+
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.clip();
+
+  // Wax surface texture
+  for(var n=0;n<250;n++){
+    var nx=Math.random()*w,ny=Math.random()*h,nr=5+Math.random()*22;
+    var ng=ctx.createRadialGradient(nx,ny,0,nx,ny,nr);
+    var bright=Math.random()>0.55;
+    ng.addColorStop(0,bright?"rgba(180,60,30,0.12)":"rgba(10,0,0,0.16)");
+    ng.addColorStop(1,"rgba(0,0,0,0)");
+    ctx.fillStyle=ng; ctx.fillRect(0,0,w,h);
+  }
+  // Flow lines
+  for(var fl=0;fl<55;fl++){
+    var fa=Math.random()*Math.PI*2;
+    var fr1=8+Math.random()*25, fr2=fr1+20+Math.random()*80;
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(fa)*fr1,cy+Math.sin(fa)*fr1);
+    ctx.lineTo(cx+Math.cos(fa+0.09)*fr2,cy+Math.sin(fa+0.09)*fr2);
+    ctx.strokeStyle="rgba(160,40,15,"+(0.04+Math.random()*0.07)+")";
+    ctx.lineWidth=0.6+Math.random()*1.8; ctx.stroke();
+  }
+  // Concentric rings
+  for(var rr=12;rr<R-2;rr+=3.8){
+    ctx.beginPath(); ctx.arc(cx,cy,rr,0,Math.PI*2);
+    ctx.strokeStyle="rgba(160,50,15,"+(0.012+Math.abs(Math.sin(rr*0.45))*0.014)+")";
+    ctx.lineWidth=0.35; ctx.stroke();
+  }
+  // Light from upper-left
+  ctx.globalCompositeOperation="overlay";
+  var hl=ctx.createLinearGradient(cx-R*0.6,cy-R*0.65,cx+R*0.45,cy+R*0.5);
+  hl.addColorStop(0,"rgba(240,160,100,0.28)");
+  hl.addColorStop(0.4,"rgba(160,70,30,0.10)");
+  hl.addColorStop(1,"rgba(20,0,0,0.30)");
+  ctx.fillStyle=hl; ctx.fillRect(0,0,w,h);
+  ctx.globalCompositeOperation="source-over";
+
+  // Vignette
+  var vig=ctx.createRadialGradient(cx,cy,R*0.42,cx,cy,R);
+  vig.addColorStop(0,"rgba(0,0,0,0)");
+  vig.addColorStop(0.68,"rgba(12,2,0,0.16)");
+  vig.addColorStop(1,"rgba(35,4,0,0.62)");
+  ctx.fillStyle=vig; ctx.fillRect(0,0,w,h);
+
+  ctx.restore();
+
+  // Rim
+  ctx.beginPath(); ctx.arc(cx,cy,R+1,0,Math.PI*2);
+  ctx.strokeStyle="#140200"; ctx.lineWidth=5; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2);
+  ctx.strokeStyle="#8a1808"; ctx.lineWidth=9; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,R+0.5,0,Math.PI*2);
+  ctx.strokeStyle="#c03818"; ctx.lineWidth=3; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,R-5,0,Math.PI*2);
+  ctx.strokeStyle="rgba(25,3,0,0.68)"; ctx.lineWidth=2.5; ctx.stroke();
+
+  return new THREE.CanvasTexture(c);
+}
+
+// ══════════════════════════════════════════════════════
+// EDGE WAX TEXTURE
+// ══════════════════════════════════════════════════════
+function makeWaxEdgeTex(w, h) {
+  var c=document.createElement("canvas"); c.width=w; c.height=h;
+  var ctx=c.getContext("2d");
+  ctx.fillStyle="#7a1208"; ctx.fillRect(0,0,w,h);
+  for(var i=0;i<h;i+=3){
+    ctx.fillStyle="rgba("+(80+Math.random()*40)+","+Math.round(Math.random()*20)+",0,"+(0.15+Math.random()*0.2)+")";
+    ctx.fillRect(0,i,w,1+Math.random()*2);
+  }
+  // Drip marks
+  for(var d=0;d<20;d++){
+    var dx=Math.random()*w;
+    var dg=ctx.createLinearGradient(dx,0,dx,h*0.6);
+    dg.addColorStop(0,"rgba(180,40,10,0.25)");
+    dg.addColorStop(1,"rgba(0,0,0,0)");
+    ctx.fillStyle=dg; ctx.fillRect(dx-2,0,5,h*0.6);
+  }
+  var et=new THREE.CanvasTexture(c);
+  et.wrapS=et.wrapT=THREE.RepeatWrapping; et.repeat.set(6,1);
+  return et;
+}
+
+// ══════════════════════════════════════════════════════
+// MATERIALS (placeholder until image loads)
+// ══════════════════════════════════════════════════════
+var waxColor=0x8a1808;
+var frontMat=new THREE.MeshStandardMaterial({
+  map: makeWaxBackTex(512,512),   // temp; replaced when img loads
+  color:0xffffff, roughness:0.68, metalness:0.03,
+  emissive:new THREE.Color(0x2a0402), emissiveIntensity:0.22
+});
+var backMat=new THREE.MeshStandardMaterial({
+  map: makeWaxBackTex(512,512),
+  color:0xffffff, roughness:0.72, metalness:0.02,
+  emissive:new THREE.Color(0x200300), emissiveIntensity:0.18
+});
+var edgeMat=new THREE.MeshStandardMaterial({
+  map: makeWaxEdgeTex(512,64),
+  color:0xb01808, roughness:0.78, metalness:0.0,
+  emissive:0x1a0200, emissiveIntensity:0.20
+});
+var rimMat=new THREE.MeshStandardMaterial({
+  color:0x9a1408, roughness:0.62, metalness:0.05,
+  emissive:0x280200, emissiveIntensity:0.25
+});
+
+// Load seal image → rebuild front texture
+var sealImg=new Image();
+sealImg.onload=function(){
+  frontMat.map=buildSealTex(sealImg,1024,1024);
+  frontMat.needsUpdate=true;
+};
+sealImg.src=SEAL_IMG;
+
+// ══════════════════════════════════════════════════════
+// GEOMETRY — identical to talar structure
+// ══════════════════════════════════════════════════════
+var coin=new THREE.Group();
+scene.add(coin);
+
+var SEG=128;
+var COIN_R=2.3;
+var COIN_T=0.26;   // slightly thicker — wax seal is chunkier than gold coin
+
+// Front face (seal side)
+var obvMesh=new THREE.Mesh(
+  new THREE.CylinderGeometry(COIN_R-0.01,COIN_R-0.01,0.015,SEG),
+  frontMat
+);
+obvMesh.rotation.x=Math.PI/2;
+obvMesh.position.z=COIN_T/2+0.005;
+obvMesh.castShadow=true;
+coin.add(obvMesh);
+
+// Back face (plain wax)
+var revMesh=new THREE.Mesh(
+  new THREE.CylinderGeometry(COIN_R-0.01,COIN_R-0.01,0.015,SEG),
+  backMat
+);
+revMesh.rotation.x=-Math.PI/2;
+revMesh.position.z=-COIN_T/2-0.005;
+revMesh.castShadow=true;
+coin.add(revMesh);
+
+// Edge cylinder
+var edgeGeo=new THREE.CylinderGeometry(COIN_R,COIN_R,COIN_T,SEG,1,true);
+var edgeMesh2=new THREE.Mesh(edgeGeo,edgeMat);
+edgeMesh2.rotation.x=Math.PI/2;
+edgeMesh2.castShadow=true;
+coin.add(edgeMesh2);
+
+// Wax drip bumps on edge (instead of milled reeds)
+for(var w2=0;w2<32;w2++){
+  var ra=(w2/32)*Math.PI*2;
+  var bump=new THREE.Mesh(
+    new THREE.SphereGeometry(0.055+Math.random()*0.04,8,8),
+    rimMat
+  );
+  bump.position.set(Math.cos(ra)*COIN_R, Math.sin(ra)*COIN_R, (Math.random()-0.5)*COIN_T*0.6);
+  coin.add(bump);
+}
+
+// Raised rim torus front
+var rimFront=new THREE.Mesh(
+  new THREE.TorusGeometry(COIN_R-0.08,0.065,12,SEG), rimMat
+);
+rimFront.position.z=COIN_T/2+0.04; coin.add(rimFront);
+
+var rimBack=new THREE.Mesh(
+  new THREE.TorusGeometry(COIN_R-0.08,0.065,12,SEG), rimMat
+);
+rimBack.position.z=-COIN_T/2-0.04; coin.add(rimBack);
+
+// ══════════════════════════════════════════════════════
+// LIGHTS — warm candle/torch atmosphere
+// ══════════════════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x200805,0.5));
+
+var keyL=new THREE.SpotLight(0xffb050,8,20,Math.PI/7,0.38,1.5);
+keyL.position.set(4,6,5);
+keyL.castShadow=true;
+keyL.shadow.mapSize.set(2048,2048);
+keyL.shadow.bias=-0.001;
+scene.add(keyL); scene.add(keyL.target);
+
+var fillL=new THREE.PointLight(0xff5818,3.0,14,2);
+fillL.position.set(-5,1,4);
+scene.add(fillL);
+
+var rimL2=new THREE.DirectionalLight(0x901008,0.35);
+rimL2.position.set(-1,3,-7);
+scene.add(rimL2);
+
+var topL=new THREE.PointLight(0xffa030,2.8,12,2);
+topL.position.set(0,7,1);
+scene.add(topL);
+
+var underL=new THREE.PointLight(0x600808,1.2,8,2);
+underL.position.set(0,-4,1);
+scene.add(underL);
+
+// ══════════════════════════════════════════════════════
+// DUST PARTICLES
+// ══════════════════════════════════════════════════════
+var DC=80;
+var dG=new THREE.BufferGeometry();
+var dP=new Float32Array(DC*3);
+var dV=[];
+for(var i=0;i<DC;i++){
+  dP[i*3]=(Math.random()-0.5)*14; dP[i*3+1]=(Math.random()-0.5)*10;
+  dP[i*3+2]=(Math.random()-0.5)*8;
+  dV.push({vx:(Math.random()-0.5)*0.003,vy:0.001+Math.random()*0.002,vz:(Math.random()-0.5)*0.002});
+}
+dG.setAttribute("position",new THREE.BufferAttribute(dP,3));
+scene.add(new THREE.Points(dG,new THREE.PointsMaterial({
+  color:0xc03010, size:0.026, transparent:true, opacity:0.22, sizeAttenuation:true
+})));
+
+// ══════════════════════════════════════════════════════
+// ANIMATION — identical phases to talar
+// ══════════════════════════════════════════════════════
+var phase="appear", elapsed=0, rotsDone=0, accum=0;
+coin.scale.set(0,0,0);
+coin.position.z=-6;
+var clock=new THREE.Clock();
+
+function animate(){
+  requestAnimationFrame(animate);
+  var dt=Math.min(clock.getDelta(),0.05);
+  elapsed+=dt;
+
+  // Flickering candle
+  fillL.intensity=2.8+Math.sin(elapsed*5.8)*0.7+Math.sin(elapsed*12.1)*0.3;
+  topL.intensity =2.5+Math.sin(elapsed*4.2+0.9)*0.5;
+  keyL.intensity =7+Math.sin(elapsed*4.9+0.3)*1.4;
+
+  // Dust
+  for(var i=0;i<DC;i++){
+    dP[i*3]+=dV[i].vx; dP[i*3+1]+=dV[i].vy; dP[i*3+2]+=dV[i].vz;
+    if(dP[i*3+1]>5){dP[i*3+1]=-4;dP[i*3]=(Math.random()-0.5)*14;}
+  }
+  dG.attributes.position.needsUpdate=true;
+
+  if(phase==="appear"){
+    var t=Math.min(elapsed/1.8,1);
+    var e=t<0.75?4*t*t*t:1-(Math.pow(-2*t+2,3)/2);
+    var s=e+(t>0.85?Math.sin((t-0.85)/0.15*Math.PI)*0.065:0);
+    s=Math.min(s,1.06);
+    coin.scale.set(s,s,s);
+    coin.position.z=-6*(1-e)*(1-e);
+    coin.rotation.y=-1.5*(1-e);
+    if(elapsed>2.2){phase="wait";elapsed=0;}
+  }
+  else if(phase==="wait"){
+    coin.scale.set(1,1,1); coin.position.z=0;
+    coin.position.y=Math.sin(elapsed*1.1)*0.02;
+    if(elapsed>0.9){phase="rotate";elapsed=0;rotsDone=0;accum=0;}
+  }
+  else if(phase==="rotate"){
+    var spd=2.8;
+    coin.rotation.y=accum+Math.min(elapsed/spd,1)*Math.PI*2;
+    coin.position.y=Math.sin(elapsed*1.4)*0.02;
+    if(elapsed>=spd){
+      accum+=Math.PI*2; elapsed=0; rotsDone++;
+      if(rotsDone>=3){phase="idle";coin.rotation.y=0;elapsed=0;}
+    }
+  }
+  else{
+    coin.position.y=Math.sin(elapsed*0.75)*0.06;
+    coin.rotation.y+=0.004;
+    coin.rotation.x=Math.sin(elapsed*0.3)*0.04;
+  }
+
+  renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener("resize",function(){
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>

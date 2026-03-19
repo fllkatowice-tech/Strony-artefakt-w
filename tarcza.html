@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Tarcza Joannitów – Komandoria Raciborska</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#080504;overflow:hidden;}
+  canvas{display:block;}
+</style>
+</head>
+<body>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ═══════════════════════════════════
+// RENDERER
+// ═══════════════════════════════════
+var W=window.innerWidth,H=window.innerHeight;
+var renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(W,H);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=0.95;
+document.body.appendChild(renderer.domElement);
+
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x080504);
+scene.fog=new THREE.FogExp2(0x080504,0.045);
+
+var camera=new THREE.PerspectiveCamera(38,W/H,0.05,80);
+camera.position.set(0,0,9);
+
+window.addEventListener('resize',function(){
+  W=window.innerWidth;H=window.innerHeight;
+  renderer.setSize(W,H);camera.aspect=W/H;camera.updateProjectionMatrix();
+});
+
+// ── Orbit ──
+var orbit={theta:0,phi:Math.PI/2,r:9};
+var drag={on:false,lx:0,ly:0};
+var autoSpin=true;
+renderer.domElement.addEventListener('mousedown',function(e){drag.on=true;drag.lx=e.clientX;drag.ly=e.clientY;autoSpin=false;});
+window.addEventListener('mouseup',function(){drag.on=false;});
+window.addEventListener('mousemove',function(e){
+  if(!drag.on)return;
+  orbit.theta-=(e.clientX-drag.lx)*0.008;
+  orbit.phi=Math.max(0.15,Math.min(Math.PI-0.15,orbit.phi+(e.clientY-drag.ly)*0.006));
+  drag.lx=e.clientX;drag.ly=e.clientY;
+});
+renderer.domElement.addEventListener('wheel',function(e){orbit.r=Math.max(4,Math.min(16,orbit.r+e.deltaY*0.01));});
+renderer.domElement.addEventListener('touchstart',function(e){drag.on=true;drag.lx=e.touches[0].clientX;drag.ly=e.touches[0].clientY;autoSpin=false;});
+window.addEventListener('touchend',function(){drag.on=false;});
+window.addEventListener('touchmove',function(e){
+  if(!drag.on)return;
+  orbit.theta-=(e.touches[0].clientX-drag.lx)*0.008;
+  orbit.phi=Math.max(0.15,Math.min(Math.PI-0.15,orbit.phi+(e.touches[0].clientY-drag.ly)*0.006));
+  drag.lx=e.touches[0].clientX;drag.ly=e.touches[0].clientY;
+});
+
+// ═══════════════════════════════════
+// TEXTURE: RED FIELD + MALTESE CROSS
+// ═══════════════════════════════════
+function makeShieldTex(w,h){
+  var c=document.createElement('canvas');c.width=w;c.height=h;
+  var x=c.getContext('2d');
+
+  // ── Crimson field with aged leather texture ──
+  x.fillStyle='#000000';x.fillRect(0,0,w,h);
+
+  // Deep vignette only - no brightening
+  var rg=x.createRadialGradient(w*.5,h*.42,20,w*.5,h*.48,w*.62);
+  rg.addColorStop(0,'rgba(0,0,0,0)');
+  rg.addColorStop(0.6,'rgba(0,0,0,0.0)');
+  rg.addColorStop(1,'rgba(0,0,0,0.75)');
+  x.fillStyle=rg;x.fillRect(0,0,w,h);
+
+  // Leather grain (fine random noise)
+  for(var i=0;i<2200;i++){
+    var gx=Math.random()*w,gy=Math.random()*h;
+    x.fillStyle='rgba(0,0,0,'+(0.05+Math.random()*0.08)+')';
+    x.fillRect(gx,gy,1+Math.random()*1.5,0.5+Math.random());
+  }
+
+  // Old horizontal stitching lines (leather panels)
+  for(var li=0;li<5;li++){
+    var ly=h*(0.18+li*0.15);
+    x.setLineDash([3,5]);
+    x.beginPath();x.moveTo(w*0.08,ly);x.lineTo(w*0.92,ly);
+    x.strokeStyle='rgba(0,0,0,0.0)';x.lineWidth=0.7;x.stroke();
+    x.setLineDash([]);
+  }
+
+  // ── Maltese cross (8-pointed) in silver-white ──
+  // Center of cross on the shield
+  var cx=w*.5, cy=h*.42;
+  var arm=w*0.30;  // arm length from center
+  var aw=w*0.120;  // arm width at base
+  var at=w*0.052;  // arm width at tip (narrower)
+
+  x.save();
+  x.shadowColor='rgba(0,0,0,0.7)';
+  x.shadowBlur=18;
+  x.shadowOffsetX=4;
+  x.shadowOffsetY=6;
+
+  // Draw all 4 arms, each arm is a trapezoid pointing outward with V-notch at tip
+  function drawArm(angle){
+    x.save();
+    x.translate(cx,cy);
+    x.rotate(angle);
+    // Trapezoidal arm body
+    x.beginPath();
+    x.moveTo(-aw/2,0);
+    x.lineTo(-at/2,-arm);
+    // V notch at tip
+    x.lineTo(0,-arm+aw*0.32);
+    x.lineTo(at/2,-arm);
+    x.lineTo(aw/2,0);
+    x.closePath();
+
+    // Metallic white gradient
+    var ag=x.createLinearGradient(-aw/2,-arm,aw/2,0);
+    ag.addColorStop(0,'#f8f8f0');
+    ag.addColorStop(0.3,'#ffffff');
+    ag.addColorStop(0.65,'#e0e0d0');
+    ag.addColorStop(1,'#c8c8b8');
+    x.fillStyle=ag;
+    x.fill();
+    x.restore();
+  }
+
+  drawArm(0);           // top
+  drawArm(Math.PI/2);   // right
+  drawArm(Math.PI);     // bottom
+  drawArm(-Math.PI/2);  // left
+
+  // Center circle (where arms meet)
+  var cr=aw*0.52;
+  var cg=x.createRadialGradient(cx-cr*.3,cy-cr*.3,1,cx,cy,cr);
+  cg.addColorStop(0,'#ffffff');
+  cg.addColorStop(0.5,'#e8e8e0');
+  cg.addColorStop(1,'#b0b0a0');
+  x.shadowColor='transparent';x.shadowBlur=0;x.shadowOffsetX=0;x.shadowOffsetY=0;
+  x.beginPath();x.arc(cx,cy,cr,0,Math.PI*2);
+  x.fillStyle=cg;x.fill();
+
+  // Silver engraved outline on cross
+  x.shadowColor='rgba(0,0,0,0.5)';x.shadowBlur=4;
+  function outlineArm(angle){
+    x.save();x.translate(cx,cy);x.rotate(angle);
+    x.beginPath();
+    x.moveTo(-aw/2,0);x.lineTo(-at/2,-arm);x.lineTo(0,-arm+aw*0.32);
+    x.lineTo(at/2,-arm);x.lineTo(aw/2,0);x.closePath();
+    x.strokeStyle='rgba(180,170,150,0.65)';x.lineWidth=2;x.stroke();
+    x.restore();
+  }
+  outlineArm(0);outlineArm(Math.PI/2);outlineArm(Math.PI);outlineArm(-Math.PI/2);
+  x.beginPath();x.arc(cx,cy,cr,0,Math.PI*2);
+  x.strokeStyle='rgba(180,170,150,0.5)';x.lineWidth=1.5;x.stroke();
+
+  x.restore();
+
+  // ── Edge border (gilded frame line) ──
+  var bw=w*.035;
+  x.strokeStyle='rgba(200,160,60,0.55)';x.lineWidth=bw*0.6;
+  x.strokeRect(bw,bw,w-bw*2,h-bw*2);
+  x.strokeStyle='rgba(255,210,100,0.30)';x.lineWidth=1.5;
+  x.strokeRect(bw*1.5,bw*1.5,w-bw*3,h-bw*3);
+
+  return new THREE.CanvasTexture(c);
+}
+
+// ── Normal map for leather bump ──
+function makeShieldNormal(w,h){
+  var c=document.createElement('canvas');c.width=w;c.height=h;
+  var x=c.getContext('2d');
+  x.fillStyle='rgb(128,128,255)';x.fillRect(0,0,w,h);
+  // random bumps
+  for(var i=0;i<400;i++){
+    var bx=Math.random()*w,by=Math.random()*h,br=2+Math.random()*5;
+    var bg=x.createRadialGradient(bx,by,0,bx,by,br);
+    bg.addColorStop(0,'rgba(148,148,255,0.5)');
+    bg.addColorStop(1,'rgba(128,128,255,0)');
+    x.fillStyle=bg;x.beginPath();x.arc(bx,by,br,0,Math.PI*2);x.fill();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+// ── Metallic rim texture ──
+function makeMetalTex(w,h){
+  var c=document.createElement('canvas');c.width=w;c.height=h;
+  var x=c.getContext('2d');
+  var g=x.createLinearGradient(0,0,w,0);
+  g.addColorStop(0,'#2a2010');g.addColorStop(0.15,'#8a6820');
+  g.addColorStop(0.35,'#c89830');g.addColorStop(0.5,'#e8c050');
+  g.addColorStop(0.65,'#c89830');g.addColorStop(0.85,'#8a6820');
+  g.addColorStop(1,'#2a2010');
+  x.fillStyle=g;x.fillRect(0,0,w,h);
+  // hammered marks
+  for(var i=0;i<120;i++){
+    var hx=Math.random()*w,hy=Math.random()*h,hr=1+Math.random()*3;
+    x.beginPath();x.arc(hx,hy,hr,0,Math.PI*2);
+    x.fillStyle='rgba(0,0,0,'+(0.1+Math.random()*.2)+')';x.fill();
+    x.beginPath();x.arc(hx-.5,hy-.5,hr*.6,0,Math.PI*2);
+    x.fillStyle='rgba(255,220,100,'+(0.08+Math.random()*.12)+')';x.fill();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+// ═══════════════════════════════════
+// SHIELD SHAPE (heater shield profile)
+// ═══════════════════════════════════
+// Build a heater-shield shaped mesh using a custom shape geometry
+function makeHeaterShield(){
+  var shape=new THREE.Shape();
+  // Heater shield: wide at top, tapers to point at bottom
+  // Coords in local space, ~2 units tall
+  var W2=1.35, H2=1.85;
+  shape.moveTo(-W2, H2);          // top-left
+  shape.lineTo( W2, H2);          // top-right
+  shape.bezierCurveTo( W2+0.18, H2*0.5,  W2+0.22,-0.2,  0,-H2); // right side + point
+  shape.bezierCurveTo(-W2-0.22,-0.2, -W2-0.18, H2*0.5, -W2, H2); // left side
+
+  // Extrude settings
+  var extSettings={
+    depth:0.22,
+    bevelEnabled:true,
+    bevelThickness:0.055,
+    bevelSize:0.055,
+    bevelSegments:5,
+    curveSegments:48
+  };
+  return new THREE.ExtrudeGeometry(shape, extSettings);
+}
+
+var shieldGeo=makeHeaterShield();
+
+// Compute UVs for the front face (map texture to front)
+// Remap UV so the texture covers the whole shield face
+var posArr=shieldGeo.attributes.position;
+var uvArr=new Float32Array(posArr.count*2);
+for(var i=0;i<posArr.count;i++){
+  var px=posArr.getX(i), py=posArr.getY(i);
+  uvArr[i*2]   =(px+1.35+0.055)/(2.7+0.11);
+  uvArr[i*2+1] =(py+1.85+0.055)/(3.7+0.11);
+}
+shieldGeo.setAttribute('uv',new THREE.BufferAttribute(uvArr,2));
+
+var shieldFrontMat=new THREE.MeshStandardMaterial({
+  map:makeShieldTex(1024,1024),
+  normalMap:makeShieldNormal(512,512),
+  normalScale:new THREE.Vector2(0.4,0.4),
+  roughness:0.98,
+  metalness:0.0,
+  envMapIntensity:0.0
+});
+
+var shieldBackMat=new THREE.MeshStandardMaterial({
+  color:0x2a1a08,
+  roughness:0.95,
+  metalness:0.0
+});
+
+var shield=new THREE.Mesh(shieldGeo,[shieldFrontMat,shieldBackMat]);
+shield.castShadow=true;
+shield.receiveShadow=true;
+// Rotate so front faces camera
+shield.rotation.x=0.08;
+
+// ── Shield pivot group (for pendulum swing) ──
+var pivot=new THREE.Group();
+pivot.add(shield);
+// Position shield so top center is at pivot origin
+shield.position.y=-0.05;
+scene.add(pivot);
+pivot.position.set(0,0.5,0);
+
+// ═══════════════════════════════════
+// METAL RIM AROUND SHIELD EDGE
+// ═══════════════════════════════════
+// We approximate the rim with a thin tube following the shield outline
+var rimShape=[];
+var W2=1.35,H2=1.85;
+var rimPts=[];
+// top edge
+var steps=60;
+for(var i=0;i<=steps;i++){
+  var t=i/steps;
+  // right bezier
+  var bx=cubicBez(W2,W2+0.18,W2+0.22,0,t);
+  var by=cubicBez(H2,H2*0.5,-0.2,-H2,t);
+  rimPts.push(new THREE.Vector3(bx,by,0.115));
+}
+for(var i=steps;i>=0;i--){
+  var t=i/steps;
+  var bx=cubicBez(-W2,-W2-0.18,-W2-0.22,0,t);
+  var by=cubicBez(H2,H2*0.5,-0.2,-H2,t);
+  rimPts.push(new THREE.Vector3(bx,by,0.115));
+}
+
+function cubicBez(p0,p1,p2,p3,t){
+  var mt=1-t;
+  return mt*mt*mt*p0+3*mt*mt*t*p1+3*mt*t*t*p2+t*t*t*p3;
+}
+
+var rimCurve=new THREE.CatmullRomCurve3(rimPts,true);
+var rimGeo=new THREE.TubeGeometry(rimCurve,180,0.042,8,true);
+var rimMat=new THREE.MeshStandardMaterial({
+  map:makeMetalTex(256,32),
+  roughness:0.28,metalness:0.88,
+  emissive:new THREE.Color(0x1a1000),emissiveIntensity:0.12
+});
+var rim=new THREE.Mesh(rimGeo,rimMat);
+rim.castShadow=true;
+shield.add(rim);
+
+// ── Boss rivets (6 decorative rivets) ──
+var rivetMat=new THREE.MeshStandardMaterial({color:0xd4a020,roughness:0.22,metalness:0.95,emissive:0x201000,emissiveIntensity:0.2});
+var rivetPositions=[
+  [-1.0, 1.55],[ 0, 1.65],[1.0, 1.55],
+  [-0.85,-0.5],[ 0.85,-0.5],[ 0,-1.3]
+];
+rivetPositions.forEach(function(rp){
+  var rGeo=new THREE.SphereGeometry(0.062,10,8);
+  var rv=new THREE.Mesh(rGeo,rivetMat);
+  rv.position.set(rp[0],rp[1],0.26);
+  rv.castShadow=true;
+  shield.add(rv);
+});
+
+// ── Central boss (umbones) ──
+var bossGeo=new THREE.SphereGeometry(0.19,18,14,0,Math.PI*2,0,Math.PI*.58);
+var boss=new THREE.Mesh(bossGeo,rivetMat);
+boss.position.set(0,0.42,0.20);
+boss.rotation.x=Math.PI;
+boss.castShadow=true;
+shield.add(boss);
+
+// ── Hanging chain ──
+var chainMat=new THREE.MeshStandardMaterial({color:0x907830,roughness:0.35,metalness:0.88});
+// Two attachment points top corners
+var chainPoints=[
+  new THREE.Vector3(-0.9,1.82,0.11),
+  new THREE.Vector3(-0.55,2.35,0.11),
+  new THREE.Vector3(0,2.55,0.11),
+  new THREE.Vector3(0.55,2.35,0.11),
+  new THREE.Vector3(0.9,1.82,0.11)
+];
+// Build chain links as small tori along spline
+var chainCurve=new THREE.CatmullRomCurve3(chainPoints);
+var chainPts2=chainCurve.getPoints(28);
+for(var ci=0;ci<chainPts2.length-1;ci+=2){
+  var p=chainPts2[ci];
+  var linkGeo=new THREE.TorusGeometry(0.065,0.018,6,10);
+  var link=new THREE.Mesh(linkGeo,chainMat);
+  link.position.copy(p);
+  // orient along curve direction
+  if(ci+1<chainPts2.length){
+    var dir=new THREE.Vector3().subVectors(chainPts2[ci+1],p).normalize();
+    link.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),dir);
+  }
+  link.castShadow=true;
+  shield.add(link);
+}
+
+// Wall anchor
+var anchorGeo=new THREE.CylinderGeometry(0.04,0.06,0.3,8);
+var anchor=new THREE.Mesh(anchorGeo,rivetMat);
+anchor.position.set(0,2.7,0);anchor.rotation.x=Math.PI/2;
+shield.add(anchor);
+
+// ═══════════════════════════════════
+// FLOOR / WALL SHADOW CATCHER
+// ═══════════════════════════════════
+var wallGeo=new THREE.PlaneGeometry(20,16);
+var wallMat=new THREE.MeshStandardMaterial({color:0x100808,roughness:1,metalness:0});
+var wall=new THREE.Mesh(wallGeo,wallMat);
+wall.position.set(0,0,-1.8);
+wall.receiveShadow=true;
+scene.add(wall);
+
+// ═══════════════════════════════════
+// LIGHTS  (dramatic dungeon lighting)
+// ═══════════════════════════════════
+scene.add(new THREE.AmbientLight(0x180c04,0.45));
+
+// Key torch light from upper-right
+var keyL=new THREE.SpotLight(0xff9840,6.5,22,Math.PI/7,0.45,1.5);
+keyL.position.set(3.5,5.5,5);
+keyL.castShadow=true;keyL.shadow.mapSize.set(2048,2048);keyL.shadow.bias=-0.001;
+scene.add(keyL);scene.add(keyL.target);keyL.target.position.set(0,0,0);
+
+// Fill from left (cooler)
+var fillL=new THREE.PointLight(0xffd0a0,2.5,18,2);
+fillL.position.set(-4,2,5);scene.add(fillL);
+
+// Rim light from behind (separates from wall)
+var rimL=new THREE.DirectionalLight(0xff8030,0.55);
+rimL.position.set(0,3,-5);scene.add(rimL);
+
+// Candle flicker bottom
+var cndL=new THREE.PointLight(0xff7020,1.8,10,2);
+cndL.position.set(0,-3,4);scene.add(cndL);
+
+// ═══════════════════════════════════
+// DUST PARTICLES
+// ═══════════════════════════════════
+var dn=40,dp=new Float32Array(dn*3),dv=[];
+for(var i=0;i<dn;i++){
+  dp[i*3]=(Math.random()-.5)*7;dp[i*3+1]=(Math.random()-.5)*6;dp[i*3+2]=(Math.random()-.5)*3;
+  dv.push({x:(Math.random()-.5)*.006,y:.002+Math.random()*.005,z:(Math.random()-.5)*.003});
+}
+var dustG=new THREE.BufferGeometry();dustG.setAttribute('position',new THREE.BufferAttribute(dp,3));
+var dustPts=new THREE.Points(dustG,new THREE.PointsMaterial({color:0x805020,size:0.035,transparent:true,opacity:0.38,sizeAttenuation:true}));
+scene.add(dustPts);
+
+// ═══════════════════════════════════
+// ANIMATE
+// ═══════════════════════════════════
+var clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  var t=clock.getElapsedTime();
+
+  if(autoSpin){
+    // Gentle pendulum swing (hanging shield)
+    pivot.rotation.z=Math.sin(t*0.55)*0.055+Math.sin(t*0.83)*0.025;
+    pivot.rotation.y=Math.sin(t*0.38)*0.12;
+    // Slow orbit auto-rotate
+    orbit.theta+=0.0008;
+  } else {
+    // Manual orbit
+    camera.position.set(
+      orbit.r*Math.sin(orbit.phi)*Math.sin(orbit.theta),
+      orbit.r*Math.cos(orbit.phi)+0.5,
+      orbit.r*Math.sin(orbit.phi)*Math.cos(orbit.theta)
+    );
+    camera.lookAt(0,0.5,0);
+  }
+
+  if(autoSpin){
+    camera.position.set(
+      orbit.r*Math.sin(orbit.phi)*Math.sin(orbit.theta),
+      orbit.r*Math.cos(orbit.phi)+0.5,
+      orbit.r*Math.sin(orbit.phi)*Math.cos(orbit.theta)
+    );
+    camera.lookAt(0,0.5,0);
+  }
+
+  // Torch flicker
+  keyL.intensity=6.0+Math.sin(t*7.1)*.45+Math.sin(t*13.8)*.22;
+  fillL.intensity=2.3+Math.sin(t*5.2)*.3;
+  cndL.intensity=1.6+Math.sin(t*9.4)*.32+Math.sin(t*17.5)*.14;
+
+  // Dust
+  for(var i=0;i<dn;i++){
+    dp[i*3]+=dv[i].x;dp[i*3+1]+=dv[i].y;dp[i*3+2]+=dv[i].z;
+    if(dp[i*3+1]>4){dp[i*3]=(Math.random()-.5)*7;dp[i*3+1]=-4;dp[i*3+2]=(Math.random()-.5)*3;}
+  }
+  dustG.attributes.position.needsUpdate=true;
+
+  renderer.render(scene,camera);
+}
+animate();
+</script>
+</body>
+</html>

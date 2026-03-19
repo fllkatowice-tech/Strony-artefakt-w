@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Duch Landsknechta</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:#020508;}
+canvas{display:block;}
+#title{position:fixed;top:22px;left:0;right:0;text-align:center;
+  font-family:'Palatino Linotype',Palatino,serif;font-size:22px;
+  color:rgba(180,230,255,.72);letter-spacing:.4em;text-transform:uppercase;
+  text-shadow:0 0 30px rgba(80,160,255,.7),0 0 60px rgba(40,100,220,.4);
+  pointer-events:none;}
+#sub{position:fixed;top:56px;left:0;right:0;text-align:center;
+  font-family:'Palatino Linotype',Palatino,serif;font-size:11px;font-style:italic;
+  color:rgba(140,195,255,.42);letter-spacing:.22em;pointer-events:none;}
+#ui{position:fixed;bottom:20px;left:0;right:0;text-align:center;
+  font-family:'Palatino Linotype',Palatino,serif;font-size:10px;
+  color:rgba(100,170,255,.38);letter-spacing:.2em;text-transform:uppercase;
+  pointer-events:none;}
+</style>
+</head>
+<body>
+<div id="title">Duch Landsknechta</div>
+<div id="sub">Koniec XV wieku · Piechota Zaciężna · Rzesza Niemiecka</div>
+<div id="ui">Przeciągnij · Scroll</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+var el=document.body;
+var W=el.clientWidth||800,H=el.clientHeight||600;
+
+var renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(W,H,false);
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=.85;
+document.body.appendChild(renderer.domElement);
+
+var scene=new THREE.Scene();
+scene.background=new THREE.Color(0x020508);
+scene.fog=new THREE.FogExp2(0x020810,.048);
+
+var camera=new THREE.PerspectiveCamera(44,W/H,.1,200);
+camera.position.set(0,3,9.5);camera.lookAt(0,2,0);
+
+// ── MATERIAL FACTORY ─────────────────────────────────────────────────────────
+function gM(col,em,op,rough,metal){
+  return new THREE.MeshStandardMaterial({
+    color:col,emissive:em||col,emissiveIntensity:.45,
+    roughness:rough!=null?rough:.7,metalness:metal||.05,
+    transparent:true,opacity:op!=null?op:.75,
+    side:THREE.DoubleSide,depthWrite:false
+  });
+}
+var mBody =gM(0x7bbfe8,0x1a4488,.78,.7,.06);
+var mCloth=gM(0x5580c0,0x142e6a,.72,.75,.04);
+var mSlash=gM(0xaadeff,0x3366bb,.50,.8,.0);
+var mHat  =gM(0x3d6090,0x0e2040,.82,.72,.05);
+var mFeath=gM(0xcce8ff,0x2255aa,.52,.92,.0);
+var mLeg  =gM(0x4d78aa,0x0e2844,.78,.72,.04);
+var mBoot =gM(0x2a3d55,0x080e18,.88,.85,.06);
+var mMetal=new THREE.MeshStandardMaterial({color:0x88bbdd,emissive:0x1a3d5a,emissiveIntensity:.65,roughness:.22,metalness:.88,transparent:true,opacity:.80,depthWrite:false});
+var mFace =gM(0x8ab8d8,0x1a3d5a,.65,.68,.06);
+var mWood =gM(0x6688aa,0x0e2233,.80,.85,.04);
+var mSword=new THREE.MeshStandardMaterial({color:0xaad4f8,emissive:0x2255aa,emissiveIntensity:.72,roughness:.14,metalness:.96,transparent:true,opacity:.82,depthWrite:false});
+var mGlow =new THREE.MeshBasicMaterial({color:0x44bbff,transparent:true,opacity:.92});
+var mEye  =new THREE.MeshStandardMaterial({color:0x001122,emissive:0x0044cc,emissiveIntensity:2.0,transparent:true,opacity:.95,depthWrite:false});
+
+var ghost=new THREE.Group();ghost.position.y=.4;scene.add(ghost);
+
+// ═══════════════════════════════════════════════════════
+// HEAD
+// ═══════════════════════════════════════════════════════
+var headG=new THREE.Group();headG.position.y=4.9;ghost.add(headG);
+
+var faceM=new THREE.Mesh(new THREE.SphereGeometry(.42,16,14),mFace);headG.add(faceM);
+var skullM=new THREE.Mesh(new THREE.SphereGeometry(.36,12,10),mFace);
+skullM.scale.set(.92,1.18,.88);skullM.position.y=.14;headG.add(skullM);
+
+// cheekbones
+[-1,1].forEach(function(s){
+  var cb=new THREE.Mesh(new THREE.SphereGeometry(.14,8,6),mFace);
+  cb.position.set(s*.25,-.04,.28);headG.add(cb);
+});
+
+// eye sockets
+[-1,1].forEach(function(s){
+  var eso=new THREE.Mesh(new THREE.SphereGeometry(.11,8,8),mEye);
+  eso.position.set(s*.16,.07,.34);headG.add(eso);
+  var eg=new THREE.Mesh(new THREE.SphereGeometry(.058,8,8),mGlow);
+  eg.position.set(s*.16,.07,.39);headG.add(eg);
+  // pupil slit
+  var ps=new THREE.Mesh(new THREE.BoxGeometry(.03,.07,.04),mEye);
+  ps.position.set(s*.16,.07,.42);headG.add(ps);
+});
+
+// nose
+var nose=new THREE.Mesh(new THREE.ConeGeometry(.065,.14,6),mFace);
+nose.rotation.x=Math.PI*.6;nose.position.set(0,-.04,.4);headG.add(nose);
+
+// forked beard (Knebelbart)
+var bMat=gM(0x7aaac8,0x1a3a55,.5,.9,.0);
+var beardBase=new THREE.Mesh(new THREE.ConeGeometry(.17,.3,8),bMat);
+beardBase.position.set(0,-.28,.28);beardBase.rotation.x=.35;headG.add(beardBase);
+[-1,1].forEach(function(s){
+  var bf=new THREE.Mesh(new THREE.ConeGeometry(.065,.22,6),bMat);
+  bf.position.set(s*.1,-.46,.22);bf.rotation.x=.28;bf.rotation.z=s*.22;headG.add(bf);
+});
+
+// moustache
+var mst=new THREE.Mesh(new THREE.TorusGeometry(.13,.022,6,12,Math.PI),bMat);
+mst.rotation.x=Math.PI/2;mst.position.set(0,-.06,.38);headG.add(mst);
+
+// ── BIG LANDSKNECHT HAT ──────────────────────────────────────────────────────
+var hatG=new THREE.Group();hatG.position.y=.36;hatG.rotation.z=.14;headG.add(hatG);
+
+var brim=new THREE.Mesh(new THREE.CylinderGeometry(.75,.82,.065,20),mHat);hatG.add(brim);
+var crown=new THREE.Mesh(new THREE.CylinderGeometry(.44,.52,.3,16),mHat);crown.position.y=.18;hatG.add(crown);
+
+// hat band – gold
+var bndM=new THREE.MeshStandardMaterial({color:0xcc9920,emissive:0x7a5500,emissiveIntensity:.55,roughness:.28,metalness:.65,transparent:true,opacity:.85,depthWrite:false});
+var hband=new THREE.Mesh(new THREE.CylinderGeometry(.44,.44,.065,16),bndM);hband.position.y=.09;hatG.add(hband);
+
+// PLUMES – massive feather fan (the Landsknecht signature)
+var featherColors=[0xddeeff,0xaaccff,0x88bbee,0xffeedd,0xeeddff,0xffffff,0x99ccee];
+function addPlume(ax,ay,az,rx,ry,rz,len,cidx){
+  var fc=featherColors[cidx%featherColors.length];
+  var fMat=gM(fc,fc&0x334455,.55,.92,.0);
+  // quill
+  var q=new THREE.Mesh(new THREE.CylinderGeometry(.012,.006,len,6),fMat);
+  q.position.set(ax,ay+len/2,az);q.rotation.set(rx,ry,rz);hatG.add(q);
+  // vane (flat plane tapered)
+  for(var vi=0;vi<6;vi++){
+    var vt=vi/5;
+    var vw=(.055*(1-vt*.6));
+    var vp=new THREE.Mesh(new THREE.PlaneGeometry(vw*2,len/6+.02),fMat);
+    vp.position.set(ax,ay+len*(vt+.08),az);
+    vp.rotation.set(rx,ry+Math.PI/2,rz);
+    hatG.add(vp);
+  }
+}
+for(var fi=0;fi<11;fi++){
+  var fa=fi*(Math.PI*2/11);
+  var fr=.34+Math.random()*.1;
+  addPlume(
+    Math.cos(fa)*fr,.26,Math.sin(fa)*fr,
+    -Math.PI/2+.25+Math.random()*.45,fa,(Math.random()-.5)*.35,
+    .75+Math.random()*.65,fi
+  );
+}
+// extra tall central 3
+for(var fi=0;fi<3;fi++){
+  addPlume((fi-1)*.15,.26,-.08,-Math.PI/2+.08,0,(fi-1)*.18,1.25+fi*.12,fi*2);
+}
+
+// ── NECK ─────────────────────────────────────────────────────────────────────
+var neckM=new THREE.Mesh(new THREE.CylinderGeometry(.19,.23,.38,10),mBody);
+neckM.position.y=4.55;ghost.add(neckM);
+
+// RUFF COLLAR (Halskrause)
+var rufM=gM(0xddeeff,0x3366aa,.52,.8,.02);
+for(var ri=0;ri<18;ri++){
+  var ra=ri*(Math.PI*2/18);
+  var rp=new THREE.Mesh(new THREE.TorusGeometry(.075,.032,6,8,Math.PI*.9),rufM);
+  rp.position.set(Math.cos(ra)*.27,4.44,Math.sin(ra)*.27);
+  rp.rotation.y=ra;rp.rotation.x=Math.PI/3.5;ghost.add(rp);
+}
+
+// ═══════════════════════════════════════════════════════
+// TORSO – PUFFED & SLASHED DOUBLET
+// ═══════════════════════════════════════════════════════
+var torso=new THREE.Mesh(new THREE.CylinderGeometry(.54,.46,1.08,14),mCloth);
+torso.position.y=3.74;ghost.add(torso);
+
+// chest puff
+var chestPuff=new THREE.Mesh(new THREE.SphereGeometry(.54,14,10),mCloth);
+chestPuff.scale.set(1.02,.88,1.08);chestPuff.position.y=3.96;ghost.add(chestPuff);
+
+// SLASHES – the absolute signature of Landsknecht fashion
+// (aristocracy tried to ban it, they kept doing it anyway)
+for(var si=0;si<8;si++){
+  var sy=3.42+si*.13;
+  var slashCount=(si<3)?4:3;
+  for(var sj=0;sj<slashCount;sj++){
+    var sa=sj*(Math.PI*2/slashCount)+si*.15;
+    var sl=new THREE.Mesh(new THREE.BoxGeometry(.25,.042,.09),mSlash);
+    sl.position.set(Math.cos(sa)*.46,sy,Math.sin(sa)*.46);sl.rotation.y=sa;
+    ghost.add(sl);
+    // lining peek through (lighter color)
+    var ln=new THREE.Mesh(new THREE.BoxGeometry(.2,.028,.05),gM(0xddeeff,0x4488cc,.38,.8,.0));
+    ln.position.set(Math.cos(sa)*.46,sy,Math.sin(sa)*.46);ln.rotation.y=sa;
+    ghost.add(ln);
+  }
+}
+
+// ── SKIRT / LOWER DOUBLET (short pleated) ────────────────────────────────────
+var skirt=new THREE.Mesh(new THREE.CylinderGeometry(.57,.70,.48,14),mCloth);
+skirt.position.y=3.08;ghost.add(skirt);
+for(var pi=0;pi<16;pi++){
+  var pa=pi*(Math.PI*2/16);
+  var pl=new THREE.Mesh(new THREE.BoxGeometry(.07,.46,.09),gM(0x6090c8,0x182840,.68,.75,.0));
+  pl.position.set(Math.cos(pa)*.62,3.08,Math.sin(pa)*.62);pl.rotation.y=pa;ghost.add(pl);
+}
+
+// ═══════════════════════════════════════════════════════
+// ARMS
+// ═══════════════════════════════════════════════════════
+function buildArm(s){
+  // shoulder sphere
+  var sh=new THREE.Mesh(new THREE.SphereGeometry(.26,10,8),mCloth);
+  sh.position.set(s*.60,4.12,0);ghost.add(sh);
+
+  // puffed upper arm with slash rings
+  for(var i=0;i<5;i++){
+    var seg=new THREE.Mesh(new THREE.CylinderGeometry(.2-.01*i,.19-.01*i,.14,10),mCloth);
+    seg.rotation.z=s*.62;
+    seg.position.set(s*(.62+i*.08),4.0-i*.05,0);ghost.add(seg);
+    // slash on arm
+    var asl=new THREE.Mesh(new THREE.BoxGeometry(.18,.038,.07),mSlash);
+    asl.position.set(s*(.62+i*.08),4.0-i*.05,s*.19);asl.rotation.y=s*Math.PI/2;ghost.add(asl);
+  }
+
+  // elbow pad (metal)
+  var el=new THREE.Mesh(new THREE.SphereGeometry(.145,10,8),mMetal);
+  el.scale.set(1.1,.85,1.1);el.position.set(s*1.07,3.58,0);ghost.add(el);
+
+  // forearm
+  var fa=new THREE.Mesh(new THREE.CylinderGeometry(.13,.11,.58,8),mBody);
+  fa.rotation.z=s*.78;fa.position.set(s*1.28,3.3,0);ghost.add(fa);
+
+  // wrist guard
+  var wg=new THREE.Mesh(new THREE.CylinderGeometry(.14,.13,.07,10),mMetal);
+  wg.rotation.z=s*.78;wg.position.set(s*1.44,3.1,0);ghost.add(wg);
+
+  // hand
+  var hd=new THREE.Mesh(new THREE.SphereGeometry(.11,8,8),mBody);
+  hd.scale.set(1,.7,1.25);hd.position.set(s*1.52,3.0,0);ghost.add(hd);
+
+  // fingers hint
+  for(var f=0;f<4;f++){
+    var fg=new THREE.Mesh(new THREE.CylinderGeometry(.025,.018,.1,6),mBody);
+    fg.position.set(s*(1.52+(f-1.5)*.06),2.92,s*.05);fg.rotation.z=s*.3;ghost.add(fg);
+  }
+}
+buildArm(-1);buildArm(1);
+
+// ═══════════════════════════════════════════════════════
+// LEGS – PLUDERHOSE (massive puffed hose)
+// ═══════════════════════════════════════════════════════
+function buildLeg(s){
+  // hip/groin area
+  var hip=new THREE.Mesh(new THREE.SphereGeometry(.25,10,8),mCloth);
+  hip.position.set(s*.26,2.82,0);ghost.add(hip);
+
+  // Pluderhose – absurdly puffed upper leg (another Landsknecht trademark)
+  for(var i=0;i<6;i++){
+    var t=i/5;
+    var pf=new THREE.Mesh(new THREE.SphereGeometry(.24-.02*t,12,10),mCloth);
+    pf.scale.set(1,.55,1);pf.position.set(s*.26,2.62-i*.1,0);ghost.add(pf);
+  }
+  // Pluderhose vertical bands
+  for(var bi=0;bi<8;bi++){
+    var ba=bi*(Math.PI*2/8);
+    var bd=new THREE.Mesh(new THREE.BoxGeometry(.04,.62,.04),gM(0x7090c0,0x1a2844,.6,.8,.0));
+    bd.position.set(s*.26+Math.cos(ba)*.22,2.45,Math.sin(ba)*.22);ghost.add(bd);
+  }
+
+  // knee cops (metal knee armor)
+  var kc=new THREE.Mesh(new THREE.SphereGeometry(.19,10,8),mMetal);
+  kc.scale.set(1.15,.85,1.15);kc.position.set(s*.24,1.98,.04);ghost.add(kc);
+  // cop rivets
+  for(var ri2=0;ri2<5;ri2++){
+    var ra2=ri2*(Math.PI*2/5);
+    var rv=new THREE.Mesh(new THREE.SphereGeometry(.02,6,6),mMetal);
+    rv.position.set(s*.24+Math.cos(ra2)*.17,1.98+Math.sin(ra2)*.12,.14);ghost.add(rv);
+  }
+
+  // lower leg – hose
+  var shin=new THREE.Mesh(new THREE.CylinderGeometry(.12,.11,.72,10),mLeg);
+  shin.position.set(s*.22,1.6,.0);ghost.add(shin);
+
+  // TALL BOOT (over-knee style)
+  var boot=new THREE.Mesh(new THREE.CylinderGeometry(.155,.135,.6,12),mBoot);
+  boot.position.set(s*.20,1.14,.06);ghost.add(boot);
+  // boot cuff
+  var bcuff=new THREE.Mesh(new THREE.CylinderGeometry(.175,.155,.09,12),mBoot);
+  bcuff.position.set(s*.20,1.44,.06);ghost.add(bcuff);
+  // boot toe – squared (period style)
+  var btoe=new THREE.Mesh(new THREE.BoxGeometry(.25,.12,.38),mBoot);
+  btoe.position.set(s*.18,.82,.2);ghost.add(btoe);
+  // boot heel
+  var bheel=new THREE.Mesh(new THREE.BoxGeometry(.2,.1,.16),mBoot);
+  bheel.position.set(s*.2,.78,-.1);ghost.add(bheel);
+  // spur
+  var spur=new THREE.Mesh(new THREE.ConeGeometry(.02,.12,6),mMetal);
+  spur.rotation.x=-Math.PI/2;spur.position.set(s*.2,.82,-.22);ghost.add(spur);
+}
+buildLeg(-1);buildLeg(1);
+
+// ═══════════════════════════════════════════════════════
+// HALBERD (left hand raised)
+// ═══════════════════════════════════════════════════════
+var halbG=new THREE.Group();
+halbG.position.set(-1.6,1.5,.15);
+halbG.rotation.z=.18;halbG.rotation.x=-.08;
+ghost.add(halbG);
+
+// shaft – long ash pole
+var shaft=new THREE.Mesh(new THREE.CylinderGeometry(.038,.034,4.5,8),mWood);
+shaft.position.y=1.35;halbG.add(shaft);
+
+// cross brace at top
+var xbrace=new THREE.Mesh(new THREE.CylinderGeometry(.012,.012,.55,6),mMetal);
+xbrace.rotation.z=Math.PI/2;xbrace.position.y=3.55;halbG.add(xbrace);
+
+// spike – top
+var topSpike=new THREE.Mesh(new THREE.ConeGeometry(.055,.58,6),mSword);
+topSpike.position.y=3.88;halbG.add(topSpike);
+// spike fuller
+var spikeFull=new THREE.Mesh(new THREE.BoxGeometry(.018,.52,.012),mSword);
+spikeFull.position.y=3.88;halbG.add(spikeFull);
+
+// axe blade – crescent sweep
+var ablPts=[];
+for(var i=0;i<=14;i++){
+  var bt=i/14;
+  ablPts.push(new THREE.Vector2(
+    .06+bt*.52,
+    (.5-Math.abs(bt-.5))*1.2-.6
+  ));
+}
+var ablGeo=new THREE.LatheGeometry(ablPts,4);
+var axeBlade=new THREE.Mesh(ablGeo,mSword);
+axeBlade.rotation.x=Math.PI/2;axeBlade.position.set(.28,3.52,0);halbG.add(axeBlade);
+// blade fuller groove
+var bfull=new THREE.Mesh(new THREE.BoxGeometry(.012,.9,.01),mSword);
+bfull.position.set(.52,3.52,0);halbG.add(bfull);
+
+// back hook
+var hookG=new THREE.Mesh(new THREE.TorusGeometry(.165,.028,6,10,Math.PI*.75),mSword);
+hookG.position.set(-.22,3.38,0);hookG.rotation.z=-.5;halbG.add(hookG);
+
+// socket langets (metal straps down shaft)
+for(var li=0;li<4;li++){
+  var lng=new THREE.Mesh(new THREE.BoxGeometry(.022,.38,.022),mMetal);
+  lng.position.set((li<2?-1:1)*.04,3.25-li*.05,0);halbG.add(lng);
+}
+
+// butt iron
+var buttIron=new THREE.Mesh(new THREE.ConeGeometry(.04,.28,6),mSword);
+buttIron.rotation.x=Math.PI;buttIron.position.y=-1.0;halbG.add(buttIron);
+
+// hand grip wrap
+for(var wi=0;wi<6;wi++){
+  var wr=new THREE.Mesh(new THREE.TorusGeometry(.042,.009,6,8),mMetal);
+  wr.rotation.x=Math.PI/2;wr.position.y=2.2+wi*.12;halbG.add(wr);
+}
+
+// ═══════════════════════════════════════════════════════
+// KATZBALGER at hip
+// ═══════════════════════════════════════════════════════
+var katzG=new THREE.Group();
+katzG.position.set(.65,2.88,.32);
+katzG.rotation.z=-.38;katzG.rotation.y=.32;
+ghost.add(katzG);
+
+// grip
+var kGrip=new THREE.Mesh(new THREE.CylinderGeometry(.048,.048,.38,8),mWood);katzG.add(kGrip);
+// grip wire wrap
+for(var kwi=0;kwi<7;kwi++){
+  var kw=new THREE.Mesh(new THREE.TorusGeometry(.052,.008,6,8),mMetal);
+  kw.rotation.x=Math.PI/2;kw.position.y=-.15+kwi*.055;katzG.add(kw);
+}
+// pommel
+var kPom=new THREE.Mesh(new THREE.SphereGeometry(.088,10,8),mSword);
+kPom.scale.set(1.1,.85,1.1);kPom.position.y=-.24;katzG.add(kPom);
+
+// S-guard (figural S-shaped cross)
+var sGuardPts=[];
+for(var i=0;i<=16;i++){
+  var st=i/16;
+  sGuardPts.push(new THREE.Vector3(Math.sin(st*Math.PI)*.2,st*.32-.16,0));
+}
+var sCurve1=new THREE.CatmullRomCurve3(sGuardPts);
+var sTube1=new THREE.Mesh(new THREE.TubeGeometry(sCurve1,12,.022,6,false),mSword);
+sTube1.position.y=.22;katzG.add(sTube1);
+var sTube2=sTube1.clone();sTube2.rotation.y=Math.PI;katzG.add(sTube2);
+
+// blade – short, broad, slight taper (Katzbalger = cat gutter, brutal close weapon)
+var kbPts=[];
+kbPts.push(new THREE.Vector2(.0,.0));
+kbPts.push(new THREE.Vector2(.1,.04));
+kbPts.push(new THREE.Vector2(.098,.3));
+kbPts.push(new THREE.Vector2(.09,.55));
+kbPts.push(new THREE.Vector2(.06,.75));
+kbPts.push(new THREE.Vector2(.02,.88));
+kbPts.push(new THREE.Vector2(.0,.92));
+var kbGeo=new THREE.LatheGeometry(kbPts,4);
+var kBlade=new THREE.Mesh(kbGeo,mSword);
+kBlade.rotation.x=Math.PI/2;kBlade.position.y=.62;katzG.add(kBlade);
+// fuller
+var kFull=new THREE.Mesh(new THREE.BoxGeometry(.015,.7,.008),mSword);
+kFull.position.y=.62;katzG.add(kFull);
+
+// SCABBARD
+var scabG=new THREE.Group();
+scabG.position.set(.58,2.52,.3);scabG.rotation.z=-.3;scabG.rotation.y=.3;
+ghost.add(scabG);
+var scab=new THREE.Mesh(new THREE.CylinderGeometry(.062,.052,.72,10),mWood);scabG.add(scab);
+var scabTip=new THREE.Mesh(new THREE.SphereGeometry(.06,8,8),mMetal);scabTip.position.y=-.38;scabG.add(scabTip);
+var scabLocket=new THREE.Mesh(new THREE.CylinderGeometry(.072,.072,.055,10),mMetal);scabLocket.position.y=.32;scabG.add(scabLocket);
+
+// ── GROUND ────────────────────────────────────────────────────────────────────
+var gnd=new THREE.Mesh(new THREE.CircleGeometry(8,32),
+  new THREE.MeshStandardMaterial({color:0x030b14,roughness:1,metalness:0}));
+gnd.rotation.x=-Math.PI/2;gnd.receiveShadow=true;scene.add(gnd);
+
+// glow disc on ground
+var gdMat=new THREE.MeshBasicMaterial({color:0x0d2a5e,transparent:true,opacity:.22});
+var glowDisc=new THREE.Mesh(new THREE.CircleGeometry(2.2,32),gdMat);
+glowDisc.rotation.x=-Math.PI/2;glowDisc.position.y=.005;scene.add(glowDisc);
+
+// outer ring
+var ringMat=new THREE.MeshBasicMaterial({color:0x0a1e44,transparent:true,opacity:.14});
+var ringD=new THREE.Mesh(new THREE.RingGeometry(2.2,4.5,32),ringMat);
+ringD.rotation.x=-Math.PI/2;ringD.position.y=.003;scene.add(ringD);
+
+// ── PARTICLES ─────────────────────────────────────────────────────────────────
+var PC=900,pPos=new Float32Array(PC*3),pPhase=new Float32Array(PC);
+for(var i=0;i<PC;i++){
+  var r=Math.random()*2.8,a=Math.random()*Math.PI*2;
+  pPos[i*3]=Math.cos(a)*r;pPos[i*3+1]=Math.random()*7.5;pPos[i*3+2]=Math.sin(a)*r;
+  pPhase[i]=Math.random()*Math.PI*2;
+}
+var pGeo=new THREE.BufferGeometry();
+pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+var pMat=new THREE.PointsMaterial({color:0x55aaff,size:.038,transparent:true,opacity:.5,sizeAttenuation:true});
+var particles=new THREE.Points(pGeo,pMat);scene.add(particles);
+
+// ── LIGHTS ────────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x0a1828,2.4));
+
+var moon=new THREE.DirectionalLight(0x3377bb,2.6);
+moon.position.set(3,9,4);moon.castShadow=true;
+moon.shadow.mapSize.set(1024,1024);scene.add(moon);
+
+var innerGlow=new THREE.PointLight(0x22aaff,4.5,7);
+innerGlow.position.set(0,3.5,.5);scene.add(innerGlow);
+
+var eyeGlow=new THREE.PointLight(0x44bbff,3.2,2);
+eyeGlow.position.set(0,4.9,.6);scene.add(eyeGlow);
+
+var bounce=new THREE.PointLight(0x0d2255,2.2,6);
+bounce.position.set(0,.8,0);scene.add(bounce);
+
+var rimLight=new THREE.DirectionalLight(0x66aadd,1.6);
+rimLight.position.set(-3,5,-5);scene.add(rimLight);
+
+var torchL=new THREE.PointLight(0xff5500,.7,15);
+torchL.position.set(5,2,4);scene.add(torchL);
+
+// ── ORBIT ─────────────────────────────────────────────────────────────────────
+var theta=-.25,phi=1.30,radius=9.5;
+var auto=true,drag=false,ox=0,oy=0,tch=null;
+var cv=renderer.domElement;
+
+cv.addEventListener('mousedown',function(e){drag=true;auto=false;ox=e.clientX;oy=e.clientY;e.preventDefault();});
+cv.addEventListener('mouseup',function(){drag=false;});
+cv.addEventListener('mouseleave',function(){drag=false;});
+cv.addEventListener('mousemove',function(e){
+  if(!drag)return;
+  theta-=(e.clientX-ox)*.007;phi-=(e.clientY-oy)*.007;
+  phi=Math.max(.18,Math.min(1.7,phi));ox=e.clientX;oy=e.clientY;
+});
+cv.addEventListener('wheel',function(e){
+  radius+=e.deltaY>.0?.35:-.35;radius=Math.max(3.5,Math.min(20,radius));
+},{passive:true});
+cv.addEventListener('touchstart',function(e){tch=e.touches;auto=false;},{passive:true});
+cv.addEventListener('touchmove',function(e){
+  if(!tch||!e.touches.length)return;
+  theta-=(e.touches[0].clientX-tch[0].clientX)*.007;
+  phi-=(e.touches[0].clientY-tch[0].clientY)*.007;
+  phi=Math.max(.18,Math.min(1.7,phi));tch=e.touches;
+},{passive:true});
+cv.addEventListener('touchend',function(){tch=null;},{passive:true});
+
+try{new ResizeObserver(function(){
+  var W2=el.clientWidth||800,H2=el.clientHeight||600;
+  camera.aspect=W2/H2;camera.updateProjectionMatrix();
+  renderer.setSize(W2,H2,false);
+}).observe(el);}catch(e){}
+
+// ── ANIMATE ───────────────────────────────────────────────────────────────────
+var t=0,halbSwing=0;
+(function loop(){
+  requestAnimationFrame(loop);t+=.009;
+
+  if(auto)theta+=.0028;
+
+  camera.position.set(
+    radius*Math.sin(phi)*Math.sin(theta),
+    radius*Math.cos(phi)+1.8,
+    radius*Math.sin(phi)*Math.cos(theta)
+  );
+  camera.lookAt(0,2.5,0);
+
+  // ghost hover
+  ghost.position.y=.4+Math.sin(t*.72)*.14;
+  ghost.rotation.y=Math.sin(t*.38)*.04;
+
+  // head movement
+  headG.rotation.z=Math.sin(t*.85)*.028;
+  headG.rotation.x=Math.sin(t*.65)*.015;
+
+  // halberd breathing
+  halbG.rotation.z=.18+Math.sin(t*.55)*.028;
+  halbG.rotation.x=-.08+Math.sin(t*.42)*.018;
+
+  // eye glow pulse
+  var ep=.65+Math.sin(t*2.2)*.32+Math.sin(t*3.8)*.1;
+  eyeGlow.intensity=3.0*ep;
+  innerGlow.intensity=4.0+Math.sin(t*1.4)*.85+Math.sin(t*2.8)*.35;
+  bounce.intensity=2.0+Math.sin(t*1.0)*.5;
+  torchL.intensity=.65+Math.sin(t*3.4)*.28+Math.sin(t*5.2)*.12;
+
+  // particles
+  var pp=particles.geometry.attributes.position.array;
+  for(var i=0;i<PC;i++){
+    pp[i*3+1]+=.005+Math.sin(pPhase[i]+t)*.003;
+    pPhase[i]+=.006;
+    if(pp[i*3+1]>8)pp[i*3+1]=0;
+    var px=pp[i*3],pz=pp[i*3+2];
+    var pang=Math.atan2(pz,px)+.003;
+    var pr=Math.sqrt(px*px+pz*pz);
+    pp[i*3]=Math.cos(pang)*pr;pp[i*3+2]=Math.sin(pang)*pr;
+  }
+  particles.geometry.attributes.position.needsUpdate=true;
+  pMat.opacity=.42+Math.sin(t*.9)*.1;
+
+  glowDisc.material.opacity=.18+Math.sin(t*1.15)*.07;
+  ringD.material.opacity=.1+Math.sin(t*.8)*.05;
+
+  renderer.render(scene,camera);
+})();
+
+})();
+</script>
+</body>
+</html>

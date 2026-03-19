@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Złoty Talar Rudolfa II</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; width:100vw; height:100vh; overflow:hidden; }
+canvas { display:block; }
+#title {
+  position:absolute; top:16px; left:50%; transform:translateX(-50%);
+  color:#e8d080; font-family:'Palatino Linotype',serif;
+  font-size:16px; letter-spacing:5px; text-transform:uppercase;
+  text-shadow:0 0 22px #c8a040ee; white-space:nowrap;
+  opacity:0; animation:fin 2s ease 1.2s forwards;
+}
+#sub {
+  position:absolute; bottom:18px; left:50%; transform:translateX(-50%);
+  color:#806830; font-family:'Palatino Linotype',serif;
+  font-size:11px; letter-spacing:4px;
+  opacity:0; animation:fin 2s ease 2.5s forwards;
+}
+@keyframes fin { to{opacity:1;} }
+</style>
+</head>
+<body>
+<div id="title">✠ &nbsp; Z Ł O T Y &nbsp; T A L A R &nbsp; R U D O L F A &nbsp; I I &nbsp; · &nbsp; 1 6 0 3 &nbsp; ✠</div>
+<div id="sub">SANCTVM · ROMANVM · IMPERIVM</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════
+// SCENE
+// ══════════════════════════════════════════════════════
+var scene = new THREE.Scene();
+scene.background = new THREE.Color(0x060402);
+scene.fog = new THREE.FogExp2(0x060402, 0.028);
+
+var camera = new THREE.PerspectiveCamera(34, innerWidth/innerHeight, 0.01, 200);
+camera.position.set(0, 0, 9.5);
+camera.lookAt(0, 0, 0);
+
+var renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.4;
+document.body.appendChild(renderer.domElement);
+
+// ══════════════════════════════════════════════════════
+// PROCEDURAL GOLD TEXTURES
+// ══════════════════════════════════════════════════════
+function makeGoldBaseTex(w, h){
+  var c=document.createElement('canvas'); c.width=w; c.height=h;
+  var ctx=c.getContext('2d');
+  var cx=w/2, cy=h/2;
+  // Rich deep gold radial gradient
+  var g=ctx.createRadialGradient(cx,cy*0.85,8,cx,cy,w/2*1.05);
+  g.addColorStop(0,'#ffe060');
+  g.addColorStop(0.2,'#f0c020');
+  g.addColorStop(0.45,'#d4a008');
+  g.addColorStop(0.7,'#b88008');
+  g.addColorStop(0.88,'#906000');
+  g.addColorStop(1,'#5a3c00');
+  ctx.fillStyle=g; ctx.fillRect(0,0,w,h);
+  // Concentric ring polish marks (coin is struck in a die)
+  for(var r=10;r<w/2-2;r+=4){
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,248,120,'+(0.012+Math.random()*0.035)+')';
+    ctx.lineWidth=0.4+Math.random()*0.8; ctx.stroke();
+  }
+  // Radial hairlines from striking
+  for(var i=0;i<220;i++){
+    var a=Math.random()*Math.PI*2;
+    var r1=Math.random()*w/2*0.9;
+    var r2=r1+4+Math.random()*12;
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(a)*r1, cy+Math.sin(a)*r1);
+    ctx.lineTo(cx+Math.cos(a)*r2, cy+Math.sin(a)*r2);
+    ctx.strokeStyle='rgba(255,230,60,'+(0.02+Math.random()*0.055)+')';
+    ctx.lineWidth=0.2+Math.random()*0.4; ctx.stroke();
+  }
+  // Wear/contact marks
+  for(var w2=0;w2<80;w2++){
+    var wx=Math.random()*w, wy=Math.random()*h, wr=1+Math.random()*9;
+    var wg=ctx.createRadialGradient(wx,wy,0,wx,wy,wr);
+    wg.addColorStop(0,'rgba(90,60,0,'+(0.06+Math.random()*0.14)+')');
+    wg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=wg; ctx.fillRect(0,0,w,h);
+  }
+  // Deep toning patches (gold ages with darker amber areas)
+  for(var t=0;t<20;t++){
+    var tx=Math.random()*w, ty=Math.random()*h;
+    var tg=ctx.createRadialGradient(tx,ty,0,tx,ty,8+Math.random()*25);
+    tg.addColorStop(0,'rgba(60,40,0,'+(0.08+Math.random()*0.18)+')');
+    tg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=tg; ctx.fillRect(0,0,w,h);
+  }
+  return c;
+}
+
+// ── OBVERSE: Rudolf II ────────────────────────────────
+function drawObverse(ctx, w, h){
+  var cx=w/2, cy=h/2, R=w/2-3;
+
+  // Gold base disc
+  var g=ctx.createRadialGradient(cx,cy*0.9,5,cx,cy,R);
+  g.addColorStop(0,'#f0c828'); g.addColorStop(0.5,'#c89010');
+  g.addColorStop(1,'#7a5000');
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.fill();
+
+  var fg=ctx.createRadialGradient(cx,cy,0,cx,cy,R*0.92);
+  fg.addColorStop(0,'rgba(255,230,80,0.1)');
+  fg.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=fg;
+  ctx.beginPath(); ctx.arc(cx,cy,R*0.92,0,Math.PI*2); ctx.fill();
+
+  function fill(color){ ctx.fillStyle=color; }
+  function stroke(color,lw){ ctx.strokeStyle=color; ctx.lineWidth=lw||1.5; }
+  function black(lw){ stroke('#000',lw||1.8); }
+  var G1='#f5d840', G2='#d4a010', G3='#a07808', G4='#7a5800';
+
+  // SHOULDERS & ARMOUR
+  fill(G2);
+  ctx.beginPath();
+  ctx.ellipse(cx,cy+88,115,78,0,0,Math.PI*2); ctx.fill();
+  black(2); ctx.beginPath();
+  ctx.ellipse(cx,cy+88,115,78,0,0,Math.PI*2); ctx.stroke();
+
+  // Breastplate
+  fill(G3);
+  ctx.beginPath();
+  ctx.moveTo(cx-88,cy+32); ctx.lineTo(cx+88,cy+32);
+  ctx.lineTo(cx+92,cy+160); ctx.lineTo(cx-92,cy+160); ctx.closePath(); ctx.fill();
+  black(2.5); ctx.stroke();
+
+  // Armour etching lines
+  black(1.5);
+  for(var al=0;al<5;al++){
+    ctx.beginPath();
+    ctx.moveTo(cx-72+al*36,cy+36);
+    ctx.bezierCurveTo(cx-76+al*37,cy+85,cx-78+al*37,cy+115,cx-82+al*38,cy+155);
+    ctx.stroke();
+  }
+  // Armour horizontal bands
+  [cy+60,cy+95,cy+128].forEach(function(y){
+    ctx.beginPath(); ctx.moveTo(cx-85,y); ctx.lineTo(cx+85,y); ctx.stroke();
+  });
+
+  // Pauldrons
+  fill(G2);
+  ctx.beginPath(); ctx.ellipse(cx-98,cy+18,40,28,0.35,0,Math.PI*2); ctx.fill();
+  black(2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(cx-98,cy+44,34,20,0.3,0,Math.PI*2); ctx.fill();
+  black(1.8); ctx.stroke();
+  fill(G2);
+  ctx.beginPath(); ctx.ellipse(cx+98,cy+18,40,28,-0.35,0,Math.PI*2); ctx.fill();
+  black(2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(cx+98,cy+44,34,20,-0.3,0,Math.PI*2); ctx.fill();
+  black(1.8); ctx.stroke();
+
+  // RUFF COLLAR
+  for(var ruf=0;ruf<20;ruf++){
+    var ra=ruf/20*Math.PI*1.05+Math.PI*(-0.025);
+    var rx=cx+Math.cos(ra)*74, ry=(cy+10)+Math.sin(ra)*42;
+    fill(ruf%2===0?G1:G2);
+    ctx.beginPath(); ctx.ellipse(rx,ry,9,15,ra-Math.PI/2+0.1,0,Math.PI*2); ctx.fill();
+    black(1.2); ctx.stroke();
+  }
+
+  // NECK
+  fill(G2);
+  ctx.beginPath(); ctx.ellipse(cx,cy+4,32,24,0,0,Math.PI*2); ctx.fill();
+  black(1.5); ctx.stroke();
+
+  // HEAD
+  fill(G2);
+  ctx.beginPath(); ctx.ellipse(cx+4,cy-68,62,70,0.04,0,Math.PI*2); ctx.fill();
+  black(2.5); ctx.stroke();
+
+  // Forehead
+  fill(G1);
+  ctx.beginPath(); ctx.ellipse(cx+4,cy-100,60,32,0,Math.PI,Math.PI*2); ctx.fill();
+  black(1.5); ctx.stroke();
+
+  // Cheek/jaw definition
+  black(1.8);
+  ctx.beginPath(); ctx.moveTo(cx+55,cy-52); ctx.quadraticCurveTo(cx+64,cy-20,cx+50,cy+2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx-50,cy-52); ctx.quadraticCurveTo(cx-60,cy-20,cx-45,cy+2); ctx.stroke();
+
+  // EYEBROWS
+  black(3.5);
+  ctx.beginPath(); ctx.moveTo(cx-30,cy-83); ctx.quadraticCurveTo(cx-18,cy-90,cx-6,cy-83); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx+6,cy-83); ctx.quadraticCurveTo(cx+18,cy-90,cx+30,cy-83); ctx.stroke();
+
+  // EYES
+  fill('#000');
+  ctx.beginPath(); ctx.ellipse(cx-18,cy-72,11,7,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx+18,cy-72,11,7,0,0,Math.PI*2); ctx.fill();
+  fill(G1);
+  ctx.beginPath(); ctx.ellipse(cx-18,cy-72,7,4,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(cx+18,cy-72,7,4,0,0,Math.PI*2); ctx.fill();
+  fill('#000');
+  ctx.beginPath(); ctx.arc(cx-18,cy-72,3,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+18,cy-72,3,0,Math.PI*2); ctx.fill();
+  // Eye whites highlight
+  fill('rgba(255,248,180,0.6)');
+  ctx.beginPath(); ctx.arc(cx-14,cy-74,2,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+22,cy-74,2,0,Math.PI*2); ctx.fill();
+
+  // NOSE
+  fill(G3);
+  ctx.beginPath(); ctx.moveTo(cx+2,cy-62); ctx.lineTo(cx-13,cy-42); ctx.lineTo(cx+13,cy-42); ctx.closePath(); ctx.fill();
+  black(2); ctx.stroke();
+  fill(G2);
+  ctx.beginPath(); ctx.ellipse(cx,cy-40,13,9,0,0,Math.PI*2); ctx.fill();
+  black(1.8); ctx.stroke();
+  // Nostril
+  black(1.5);
+  ctx.beginPath(); ctx.ellipse(cx-6,cy-38,4,3,0,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(cx+6,cy-38,4,3,0,0,Math.PI*2); ctx.stroke();
+
+  // HABSBURG LIP
+  fill(G2);
+  ctx.beginPath(); ctx.ellipse(cx,cy-28,17,8,0,Math.PI*0.05,Math.PI*1.1); ctx.fill();
+  black(2.2); ctx.stroke();
+  fill(G3);
+  ctx.beginPath(); ctx.ellipse(cx,cy-23,15,6,0,0,Math.PI); ctx.fill();
+  black(2); ctx.stroke();
+  // Mouth line
+  black(2.5);
+  ctx.beginPath(); ctx.moveTo(cx-12,cy-20); ctx.quadraticCurveTo(cx,cy-16,cx+12,cy-20); ctx.stroke();
+
+  // CHIN
+  fill(G2);
+  ctx.beginPath(); ctx.ellipse(cx,cy-12,20,12,0,0,Math.PI); ctx.fill();
+  black(1.8); ctx.stroke();
+
+  // EAR
+  fill(G2);
+  ctx.beginPath(); ctx.ellipse(cx+58,cy-60,13,20,0.2,0,Math.PI*2); ctx.fill();
+  black(2); ctx.stroke();
+  fill(G3);
+  ctx.beginPath(); ctx.ellipse(cx+58,cy-60,7,13,0.2,0,Math.PI*2); ctx.fill();
+  black(1.2); ctx.stroke();
+
+  // HAIR
+  fill(G3);
+  ctx.beginPath(); ctx.ellipse(cx-56,cy-64,20,32,0.1,0,Math.PI*2); ctx.fill();
+  black(1.5); ctx.stroke();
+
+  // IMPERIAL CROWN
+  fill(G2);
+  ctx.fillRect(cx-60,cy-138,120,26);
+  black(2.5); ctx.strokeRect(cx-60,cy-138,120,26);
+  // Crown band decoration
+  black(1.2);
+  for(var cb=0;cb<5;cb++) ctx.strokeRect(cx-50+cb*24,cy-134,16,18);
+  // Fleur-de-lis
+  for(var fl=0;fl<5;fl++){
+    var fx=cx-52+fl*26;
+    fill(G1);
+    ctx.beginPath(); ctx.ellipse(fx+13,cy-154,12,20,0,Math.PI,Math.PI*2); ctx.fill();
+    black(2); ctx.stroke();
+    fill(G1);
+    ctx.beginPath(); ctx.arc(fx+13,cy-172,6,0,Math.PI*2); ctx.fill();
+    black(1.8); ctx.stroke();
+  }
+  // Crown arch
+  ctx.strokeStyle='#000'; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.arc(cx,cy-138,58,Math.PI,0); ctx.stroke();
+  fill(G1);
+  ctx.beginPath(); ctx.arc(cx,cy-138,58,Math.PI,0); ctx.stroke();
+  ctx.strokeStyle=G1; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(cx,cy-138,58,Math.PI,0); ctx.stroke();
+  // Crown cross
+  fill(G1);
+  ctx.fillRect(cx-5,cy-200,10,38); black(2); ctx.strokeRect(cx-5,cy-200,10,38);
+  ctx.fillRect(cx-17,cy-180,34,10); ctx.strokeRect(cx-17,cy-180,34,10);
+  fill(G1);
+  ctx.beginPath(); ctx.arc(cx,cy-164,11,0,Math.PI*2); ctx.fill();
+  black(2); ctx.stroke();
+  // Gems
+  fill(G1);
+  [-42,-18,0,18,42].forEach(function(ox){
+    ctx.beginPath(); ctx.ellipse(cx+ox,cy-130,5,7,0,0,Math.PI*2); ctx.fill();
+    black(1.5); ctx.stroke();
+  });
+
+  // LEGEND
+  ctx.save();
+  ctx.font='bold 18px serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  var legend='RUDOLPHVS·II·D·G·ROM·IMP·SEMP·AVG';
+  var legR=R-13;
+  for(var li=0;li<legend.length;li++){
+    var la=(li/legend.length)*Math.PI*2-Math.PI/2;
+    ctx.save();
+    ctx.translate(cx+Math.cos(la)*legR,cy+Math.sin(la)*legR);
+    ctx.rotate(la+Math.PI/2);
+    // Black shadow
+    ctx.fillStyle='#000'; ctx.fillText(legend[li],1,1);
+    ctx.fillStyle='#3a2000'; ctx.fillText(legend[li],0,0);
+    ctx.restore();
+  }
+  ctx.restore();
+  // Date
+  ctx.font='bold 21px serif'; ctx.textAlign='center';
+  ctx.fillStyle='#000'; ctx.fillText('1603',cx+1,cy+166);
+  ctx.fillStyle='#3a2000'; ctx.fillText('1603',cx,cy+165);
+  ctx.font='14px serif';
+  ctx.fillStyle='#000'; ctx.fillText('✦ HRR ✦',cx+1,cy+184);
+  ctx.fillStyle='#5a3800'; ctx.fillText('✦ HRR ✦',cx,cy+183);
+}
+
+
+// ── REVERSE: Double-headed Eagle ─────────────────────
+function drawReverse(ctx, w, h){
+  var cx=w/2, cy=h/2, R=w/2-3;
+
+  // Gold base
+  var g=ctx.createRadialGradient(cx,cy*0.9,5,cx,cy,R);
+  g.addColorStop(0,'#f0c828'); g.addColorStop(0.5,'#c89010');
+  g.addColorStop(1,'#7a5000');
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2); ctx.fill();
+
+  function fill(c){ ctx.fillStyle=c; }
+  function black(lw){ ctx.strokeStyle='#000'; ctx.lineWidth=lw||2; }
+  var G1='#f5d840',G2='#d4a010',G3='#a07808',G4='#7a5800';
+
+  // WINGS – bold filled with black outlines
+  // Left wing
+  fill(G3);
+  ctx.beginPath();
+  ctx.moveTo(cx-10,cy-32);
+  ctx.bezierCurveTo(cx-50,cy-82,cx-148,cy-58,cx-195,cy+12);
+  ctx.bezierCurveTo(cx-175,cy+68,cx-118,cy+82,cx-48,cy+56);
+  ctx.bezierCurveTo(cx-18,cy+36,cx-8,cy+10,cx-10,cy-32);
+  ctx.fill();
+  black(2.5); ctx.stroke();
+
+  // Right wing
+  ctx.beginPath();
+  ctx.moveTo(cx+10,cy-32);
+  ctx.bezierCurveTo(cx+50,cy-82,cx+148,cy-58,cx+195,cy+12);
+  ctx.bezierCurveTo(cx+175,cy+68,cx+118,cy+82,cx+48,cy+56);
+  ctx.bezierCurveTo(cx+18,cy+36,cx+8,cy+10,cx+10,cy-32);
+  ctx.fill();
+  black(2.5); ctx.stroke();
+
+  // Wing feather lines – bold black
+  black(2);
+  for(var wf=0;wf<10;wf++){
+    var wt=(wf+1)/11;
+    var wy=cy+wf*7-32;
+    ctx.beginPath();
+    ctx.moveTo(cx-15,wy);
+    ctx.quadraticCurveTo(cx-80-wt*65,wy-14,cx-78-wt*112,wy+wf*3-6);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx+15,wy);
+    ctx.quadraticCurveTo(cx+80+wt*65,wy-14,cx+78+wt*112,wy+wf*3-6);
+    ctx.stroke();
+  }
+  // Primary feather tips
+  black(1.5);
+  for(var wf2=0;wf2<8;wf2++){
+    var wt2=(wf2+1)/9;
+    ctx.beginPath();
+    ctx.moveTo(cx-78-wt2*90,cy+wf2*5-28);
+    ctx.lineTo(cx-88-wt2*100,cy+wf2*5-44);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx+78+wt2*90,cy+wf2*5-28);
+    ctx.lineTo(cx+88+wt2*100,cy+wf2*5-44);
+    ctx.stroke();
+  }
+
+  // EAGLE BODY
+  fill(G3);
+  ctx.beginPath(); ctx.ellipse(cx,cy+22,74,92,0,0,Math.PI*2); ctx.fill();
+  black(3); ctx.stroke();
+  // Body feather rows
+  black(1.8);
+  for(var bf=0;bf<7;bf++){
+    ctx.beginPath();
+    ctx.ellipse(cx,cy+bf*17-22,32+bf*5,12,0,0,Math.PI);
+    ctx.stroke();
+  }
+
+  // TWO NECKS
+  fill(G2);
+  ctx.beginPath(); ctx.ellipse(cx-44,cy-72,20,40,0,0,Math.PI*2); ctx.fill();
+  black(2.5); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(cx+44,cy-72,20,40,0,0,Math.PI*2); ctx.fill();
+  ctx.stroke();
+
+  // TWO HEADS
+  [-1,1].forEach(function(side){
+    var hx=cx+side*44, hy=cy-124;
+
+    // Head
+    fill(G2);
+    ctx.beginPath(); ctx.ellipse(hx,hy,36,38,0,0,Math.PI*2); ctx.fill();
+    black(3); ctx.stroke();
+
+    // Forehead highlight
+    fill(G1);
+    ctx.beginPath(); ctx.ellipse(hx,hy-8,30,20,0,Math.PI,Math.PI*2); ctx.fill();
+    black(1.5); ctx.stroke();
+
+    // EYE
+    fill('#000');
+    ctx.beginPath(); ctx.ellipse(hx+side*13,hy,9,7,0,0,Math.PI*2); ctx.fill();
+    black(2); ctx.stroke();
+    fill(G1);
+    ctx.beginPath(); ctx.ellipse(hx+side*13,hy,5,4,0,0,Math.PI*2); ctx.fill();
+    fill('#000');
+    ctx.beginPath(); ctx.arc(hx+side*13,hy,2.5,0,Math.PI*2); ctx.fill();
+    // Eye glint
+    fill('rgba(255,255,200,0.8)');
+    ctx.beginPath(); ctx.arc(hx+side*15,hy-2,1.5,0,Math.PI*2); ctx.fill();
+
+    // BEAK
+    fill(G2);
+    ctx.beginPath();
+    ctx.moveTo(hx+side*30,hy+2);
+    ctx.lineTo(hx+side*58,hy+10);
+    ctx.lineTo(hx+side*54,hy+22);
+    ctx.lineTo(hx+side*30,hy+18);
+    ctx.closePath(); ctx.fill();
+    black(2.5); ctx.stroke();
+    // Beak hook
+    fill(G3);
+    ctx.beginPath();
+    ctx.moveTo(hx+side*54,hy+10);
+    ctx.lineTo(hx+side*62,hy+18);
+    ctx.lineTo(hx+side*54,hy+24);
+    ctx.closePath(); ctx.fill();
+    black(2); ctx.stroke();
+    // Nostril
+    fill('#000');
+    ctx.beginPath(); ctx.ellipse(hx+side*42,hy+8,4,3,0.3,0,Math.PI*2); ctx.fill();
+    // Tongue
+    black(2);
+    ctx.beginPath();
+    ctx.moveTo(hx+side*34,hy+14); ctx.lineTo(hx+side*56,hy+18); ctx.stroke();
+
+    // IMPERIAL CROWN on each head
+    fill(G1);
+    ctx.fillRect(hx-26,cy-166,52,18);
+    black(2.5); ctx.strokeRect(hx-26,cy-166,52,18);
+    // Crown fleurs (3)
+    for(var cp=0;cp<3;cp++){
+      fill(G1);
+      ctx.beginPath(); ctx.ellipse(hx-18+cp*18,cy-178,9,16,0,Math.PI,Math.PI*2); ctx.fill();
+      black(2); ctx.stroke();
+      fill(G1);
+      ctx.beginPath(); ctx.arc(hx-18+cp*18,cy-193,5,0,Math.PI*2); ctx.fill();
+      black(1.8); ctx.stroke();
+    }
+    // Crown arch
+    ctx.strokeStyle='#000'; ctx.lineWidth=5;
+    ctx.beginPath(); ctx.arc(hx,cy-166,26,Math.PI*1.02,-0.02); ctx.stroke();
+    ctx.strokeStyle=G1; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(hx,cy-166,26,Math.PI*1.02,-0.02); ctx.stroke();
+    // Crown cross
+    fill(G1);
+    ctx.fillRect(hx-3,cy-202,6,24); black(2); ctx.strokeRect(hx-3,cy-202,6,24);
+    ctx.fillRect(hx-11,cy-190,22,6); ctx.strokeRect(hx-11,cy-190,22,6);
+    fill(G1);
+    ctx.beginPath(); ctx.arc(hx,cy-206,5,0,Math.PI*2); ctx.fill();
+    black(2); ctx.stroke();
+  });
+
+  // HABSBURG SHIELD
+  // Shadow
+  fill('rgba(0,0,0,0.35)');
+  ctx.beginPath();
+  ctx.moveTo(cx-39,cy-18); ctx.lineTo(cx+39,cy-18);
+  ctx.lineTo(cx+39,cy+44); ctx.lineTo(cx,cy+70); ctx.lineTo(cx-39,cy+44);
+  ctx.closePath(); ctx.fill();
+
+  // Red half (left) – darker gold
+  fill(G4);
+  ctx.beginPath();
+  ctx.moveTo(cx-37,cy-15); ctx.lineTo(cx+3,cy-15);
+  ctx.lineTo(cx+3,cy+42); ctx.lineTo(cx-10,cy+66); ctx.lineTo(cx-37,cy+42);
+  ctx.closePath(); ctx.fill();
+  // White half (right) – bright gold
+  fill(G1);
+  ctx.beginPath();
+  ctx.moveTo(cx+5,cy-15); ctx.lineTo(cx+37,cy-15);
+  ctx.lineTo(cx+37,cy+42); ctx.lineTo(cx+10,cy+66); ctx.lineTo(cx+5,cy+42);
+  ctx.closePath(); ctx.fill();
+  // Full shield border
+  black(3);
+  ctx.beginPath();
+  ctx.moveTo(cx-37,cy-15); ctx.lineTo(cx+37,cy-15);
+  ctx.lineTo(cx+37,cy+42); ctx.lineTo(cx,cy+67); ctx.lineTo(cx-37,cy+42);
+  ctx.closePath(); ctx.stroke();
+  // Center divider line
+  black(2);
+  ctx.beginPath(); ctx.moveTo(cx+1,cy-15); ctx.lineTo(cx+1,cy+64); ctx.stroke();
+  // Imperial eagle on shield (small)
+  fill('#000');
+  ctx.beginPath(); ctx.ellipse(cx,cy+14,9,12,0,0,Math.PI*2); ctx.fill();
+  fill(G2);
+  ctx.beginPath(); ctx.moveTo(cx-7,cy+8); ctx.lineTo(cx+7,cy+8);
+  ctx.lineTo(cx,cy+26); ctx.closePath(); ctx.fill();
+  black(1); ctx.stroke();
+
+  // SCEPTRE
+  ctx.strokeStyle='#000'; ctx.lineWidth=7;
+  ctx.beginPath(); ctx.moveTo(cx+52,cy+98); ctx.lineTo(cx+98,cy-12); ctx.stroke();
+  ctx.strokeStyle=G1; ctx.lineWidth=5;
+  ctx.beginPath(); ctx.moveTo(cx+52,cy+98); ctx.lineTo(cx+98,cy-12); ctx.stroke();
+  fill(G1);
+  ctx.beginPath(); ctx.ellipse(cx+101,cy-20,13,22,0.4,0,Math.PI*2); ctx.fill();
+  black(2.5); ctx.stroke();
+  // Sceptre finial cross
+  fill(G1);
+  ctx.fillRect(cx+97,cy-44,8,20); black(2); ctx.strokeRect(cx+97,cy-44,8,20);
+  ctx.fillRect(cx+89,cy-36,24,7); ctx.strokeRect(cx+89,cy-36,24,7);
+  // Talons right
+  black(3);
+  [3,8,13].forEach(function(off){
+    ctx.beginPath();
+    ctx.moveTo(cx+45+off,cy+90);
+    ctx.quadraticCurveTo(cx+50+off,cy+108,cx+44+off,cy+118);
+    ctx.stroke();
+  });
+
+  // ORB
+  fill(G2);
+  ctx.beginPath(); ctx.arc(cx-68,cy+72,26,0,Math.PI*2); ctx.fill();
+  black(3); ctx.stroke();
+  // Orb meridians
+  black(2);
+  ctx.beginPath(); ctx.moveTo(cx-68,cy+46); ctx.lineTo(cx-68,cy+98); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx-94,cy+72); ctx.lineTo(cx-42,cy+72); ctx.stroke();
+  fill(G2);
+  ctx.beginPath(); ctx.ellipse(cx-68,cy+72,26,11,0,0,Math.PI*2); black(1.5); ctx.stroke();
+  // Orb cross
+  fill(G1);
+  ctx.fillRect(cx-72,cy+40,8,24); black(2); ctx.strokeRect(cx-72,cy+40,8,24);
+  ctx.fillRect(cx-82,cy+46,20,8); ctx.strokeRect(cx-82,cy+46,20,8);
+  ctx.beginPath(); ctx.arc(cx-68,cy+42,6,0,Math.PI*2); ctx.fill(); black(2); ctx.stroke();
+  // Talons left
+  black(3);
+  [-13,-8,-3].forEach(function(off){
+    ctx.beginPath();
+    ctx.moveTo(cx-55+off,cy+92);
+    ctx.quadraticCurveTo(cx-50+off,cy+110,cx-56+off,cy+120);
+    ctx.stroke();
+  });
+
+  // LEGEND
+  ctx.save();
+  ctx.font='bold 17px serif';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  var legend='ARCHID·AVST·DVX·BVRG·COMES·TYROL';
+  var legR=R-13;
+  for(var ri=0;ri<legend.length;ri++){
+    var la=(ri/legend.length)*Math.PI*2-Math.PI/2;
+    ctx.save();
+    ctx.translate(cx+Math.cos(la)*legR,cy+Math.sin(la)*legR);
+    ctx.rotate(la+Math.PI/2);
+    ctx.fillStyle='#000'; ctx.fillText(legend[ri],1,1);
+    ctx.fillStyle='#3a2000'; ctx.fillText(legend[ri],0,0);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+
+// Build textures
+function buildTex(drawFn, w, h){
+  var base = makeGoldBaseTex(w,h);
+  var ctx = base.getContext('2d');
+  drawFn(ctx, w, h);
+  return new THREE.CanvasTexture(base);
+}
+var obverseTex = buildTex(drawObverse, 512, 512);
+var reverseTex = buildTex(drawReverse, 512, 512);
+
+// Edge texture
+var edgeBase = makeGoldBaseTex(512, 64);
+var edgeTex = new THREE.CanvasTexture(edgeBase);
+edgeTex.wrapS = edgeTex.wrapT = THREE.RepeatWrapping;
+edgeTex.repeat.set(8, 1);
+
+// ══════════════════════════════════════════════════════
+// MATERIALS
+// ══════════════════════════════════════════════════════
+var goldBase = new THREE.MeshStandardMaterial({
+  color:0xd4a010, roughness:0.16, metalness:1.0,
+  emissive:0x4a2c00, emissiveIntensity:0.22
+});
+var obverseMat = new THREE.MeshStandardMaterial({
+  map:obverseTex, color:0xc8a008,
+  roughness:0.2, metalness:0.96,
+  emissive:0x3a1e00, emissiveIntensity:0.15
+});
+var reverseMat = new THREE.MeshStandardMaterial({
+  map:reverseTex, color:0xc0980a,
+  roughness:0.22, metalness:0.95,
+  emissive:0x301800, emissiveIntensity:0.12
+});
+var edgeMat = new THREE.MeshStandardMaterial({
+  map:edgeTex, color:0xb88808,
+  roughness:0.14, metalness:1.0,
+  emissive:0x3a2000, emissiveIntensity:0.2
+});
+var rimMat = new THREE.MeshStandardMaterial({
+  color:0xe0b010, roughness:0.1, metalness:1.0,
+  emissive:0x603800, emissiveIntensity:0.3
+});
+
+// ══════════════════════════════════════════════════════
+// LIGHTS
+// ══════════════════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x1a1206, 0.45));
+
+var keyL = new THREE.SpotLight(0xffe898, 90, 22, Math.PI/7, 0.22, 1.5);
+keyL.position.set(4, 6, 5);
+keyL.castShadow=true;
+keyL.shadow.mapSize.set(2048,2048);
+keyL.shadow.bias=-0.001;
+scene.add(keyL); scene.add(keyL.target);
+
+var fillL = new THREE.PointLight(0xff8830, 14, 14, 2);
+fillL.position.set(-5, 1, 4);
+scene.add(fillL);
+
+var rimL2 = new THREE.DirectionalLight(0xc09818, 0.9);
+rimL2.position.set(-1, 3, -7);
+scene.add(rimL2);
+
+var topL = new THREE.PointLight(0xffd060, 11, 12, 2);
+topL.position.set(0, 7, 1);
+scene.add(topL);
+
+var underL = new THREE.PointLight(0x805010, 4, 8, 2);
+underL.position.set(0, -4, 1);
+scene.add(underL);
+
+// ══════════════════════════════════════════════════════
+// COIN GEOMETRY
+// ══════════════════════════════════════════════════════
+var coin = new THREE.Group();
+scene.add(coin);
+
+var COIN_R = 2.3;
+var COIN_T = 0.20;
+var SEG = 128;
+
+// Obverse face disc
+var obvMesh = new THREE.Mesh(
+  new THREE.CylinderGeometry(COIN_R-0.01, COIN_R-0.01, 0.015, SEG),
+  obverseMat
+);
+obvMesh.rotation.x=Math.PI/2;
+obvMesh.position.z=COIN_T/2+0.005;
+obvMesh.castShadow=true;
+coin.add(obvMesh);
+
+// Convex relief dome – obverse
+var domeFront = new THREE.Mesh(
+  new THREE.SphereGeometry(COIN_R*3.5, SEG, SEG, 0, Math.PI*2, 0, 0.05),
+  obverseMat
+);
+domeFront.rotation.x=-Math.PI/2;
+domeFront.position.z=COIN_T/2-0.015;
+coin.add(domeFront);
+
+// Reverse face disc
+var revMesh = new THREE.Mesh(
+  new THREE.CylinderGeometry(COIN_R-0.01, COIN_R-0.01, 0.015, SEG),
+  reverseMat
+);
+revMesh.rotation.x=-Math.PI/2;
+revMesh.position.z=-COIN_T/2-0.005;
+revMesh.castShadow=true;
+coin.add(revMesh);
+
+// Convex dome – reverse
+var domeBack = new THREE.Mesh(
+  new THREE.SphereGeometry(COIN_R*3.5, SEG, SEG, 0, Math.PI*2, 0, 0.05),
+  reverseMat
+);
+domeBack.rotation.x=Math.PI/2;
+domeBack.position.z=-COIN_T/2+0.015;
+coin.add(domeBack);
+
+// Coin edge/rim cylinder
+var edgeGeo = new THREE.CylinderGeometry(COIN_R, COIN_R, COIN_T, SEG, 1, true);
+var edgeMesh2 = new THREE.Mesh(edgeGeo, edgeMat);
+edgeMesh2.rotation.x=Math.PI/2;
+edgeMesh2.castShadow=true;
+coin.add(edgeMesh2);
+
+// ── MILLED EDGE – 120 reeds ────────────────────────────
+var nReeds=120;
+for(var r=0;r<nReeds;r++){
+  var ra=r/nReeds*Math.PI*2;
+  var reed=new THREE.Mesh(
+    new THREE.BoxGeometry(0.03, COIN_T+0.008, 0.055),
+    rimMat
+  );
+  reed.position.set(Math.cos(ra)*COIN_R, Math.sin(ra)*COIN_R, 0);
+  reed.rotation.z=ra;
+  var rg=new THREE.Group();
+  rg.rotation.x=Math.PI/2;
+  coin.add(reed);
+}
+
+// Front raised rim ring
+var rimFront = new THREE.Mesh(
+  new THREE.TorusGeometry(COIN_R-0.08, 0.065, 12, SEG),
+  rimMat
+);
+rimFront.position.z=COIN_T/2+0.04;
+rimFront.castShadow=true;
+coin.add(rimFront);
+
+// Back raised rim ring
+var rimBack = new THREE.Mesh(
+  new THREE.TorusGeometry(COIN_R-0.08, 0.065, 12, SEG),
+  rimMat
+);
+rimBack.position.z=-COIN_T/2-0.04;
+coin.add(rimBack);
+
+// ══════════════════════════════════════════════════════
+// DUST
+// ══════════════════════════════════════════════════════
+var DC=80;
+var dG=new THREE.BufferGeometry();
+var dP=new Float32Array(DC*3);
+var dV=[];
+for(var i=0;i<DC;i++){
+  dP[i*3]=(Math.random()-0.5)*14; dP[i*3+1]=(Math.random()-0.5)*10;
+  dP[i*3+2]=(Math.random()-0.5)*8;
+  dV.push({vx:(Math.random()-0.5)*0.003,vy:0.001+Math.random()*0.002,vz:(Math.random()-0.5)*0.002});
+}
+dG.setAttribute('position',new THREE.BufferAttribute(dP,3));
+scene.add(new THREE.Points(dG, new THREE.PointsMaterial({
+  color:0xe0b030, size:0.026, transparent:true, opacity:0.28, sizeAttenuation:true
+})));
+
+// ══════════════════════════════════════════════════════
+// ANIMATION
+// ══════════════════════════════════════════════════════
+var phase='appear', elapsed=0, rotsDone=0, accum=0;
+coin.scale.set(0,0,0);
+coin.position.z=-6;
+var clock=new THREE.Clock();
+
+function animate(){
+  requestAnimationFrame(animate);
+  var dt=Math.min(clock.getDelta(),0.05);
+  elapsed+=dt;
+
+  fillL.intensity  =12+Math.sin(elapsed*5.8)*2+Math.sin(elapsed*12.1)*0.9;
+  topL.intensity   =10+Math.sin(elapsed*4.2+0.9)*1.6;
+  keyL.intensity   =86+Math.sin(elapsed*4.9+0.3)*7;
+
+  for(var i=0;i<DC;i++){
+    dP[i*3]+=dV[i].vx; dP[i*3+1]+=dV[i].vy; dP[i*3+2]+=dV[i].vz;
+    if(dP[i*3+1]>5){dP[i*3+1]=-4;dP[i*3]=(Math.random()-0.5)*14;}
+  }
+  dG.attributes.position.needsUpdate=true;
+
+  if(phase==='appear'){
+    var t=Math.min(elapsed/1.8,1);
+    var e=t<0.75?4*t*t*t:1-(Math.pow(-2*t+2,3)/2);
+    var s=e+(t>0.85?Math.sin((t-0.85)/0.15*Math.PI)*0.065:0);
+    s=Math.min(s,1.06);
+    coin.scale.set(s,s,s);
+    coin.position.z=-6*(1-e)*(1-e);
+    coin.rotation.y=-1.5*(1-e);
+    if(elapsed>2.2){phase='wait';elapsed=0;}
+  }
+  else if(phase==='wait'){
+    coin.scale.set(1,1,1); coin.position.z=0;
+    coin.position.y=Math.sin(elapsed*1.1)*0.02;
+    if(elapsed>0.9){phase='rotate';elapsed=0;rotsDone=0;accum=0;}
+  }
+  else if(phase==='rotate'){
+    var spd=2.8;
+    coin.rotation.y=accum+Math.min(elapsed/spd,1)*Math.PI*2;
+    coin.position.y=Math.sin(elapsed*1.4)*0.02;
+    if(elapsed>=spd){
+      accum+=Math.PI*2; elapsed=0; rotsDone++;
+      if(rotsDone>=3){phase='idle';coin.rotation.y=0;elapsed=0;}
+    }
+  }
+  else{
+    coin.position.y=Math.sin(elapsed*0.75)*0.06;
+    coin.rotation.y+=0.004;
+    coin.rotation.x=Math.sin(elapsed*0.3)*0.04;
+  }
+
+  renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener('resize',function(){
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>

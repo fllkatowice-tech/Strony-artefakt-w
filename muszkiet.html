@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Muszkiet Lontowy</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; width:100vw; height:100vh; overflow:hidden; }
+canvas { display:block; }
+#title {
+  position:absolute; top:18px; left:50%; transform:translateX(-50%);
+  color:#c8a050; font-family:'Palatino Linotype',serif;
+  font-size:19px; letter-spacing:6px; text-transform:uppercase;
+  text-shadow:0 0 20px #c8922acc; white-space:nowrap;
+  opacity:0; animation: fin 2s ease 1.2s forwards;
+}
+#sub {
+  position:absolute; bottom:22px; left:50%; transform:translateX(-50%);
+  color:#7a5828; font-family:'Palatino Linotype',serif;
+  font-size:12px; letter-spacing:3px;
+  opacity:0; animation: fin 2s ease 2.5s forwards;
+}
+@keyframes fin { to { opacity:1; } }
+</style>
+</head>
+<body>
+<div id="title">⚔ &nbsp; M U S Z K I E T &nbsp; L O N T O W Y &nbsp; ⚔</div>
+<div id="sub">✦ &nbsp; XVI wiek &nbsp; ✦</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════
+// SCENE
+// ══════════════════════════════════════════════════════════
+var scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x080503, 0.055);
+scene.background = new THREE.Color(0x060402);
+
+var camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.01, 200);
+camera.position.set(0, 1.5, 9);
+camera.lookAt(0, 0, 0);
+
+var renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.3;
+document.body.appendChild(renderer.domElement);
+
+// ══════════════════════════════════════════════════════════
+// PROCEDURAL TEXTURES
+// ══════════════════════════════════════════════════════════
+function makeWoodTex(w,h,baseColor){
+  var c=document.createElement('canvas'); c.width=w||512; c.height=h||256;
+  var ctx=c.getContext('2d');
+  ctx.fillStyle=baseColor||'#3d1e08'; ctx.fillRect(0,0,c.width,c.height);
+  for(var i=0;i<180;i++){
+    var x=Math.random()*c.width;
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x+(Math.random()-0.5)*14,c.height);
+    var a=0.03+Math.random()*0.1;
+    ctx.strokeStyle='rgba('+(Math.random()>0.5?60:16)+','+(Math.random()>0.5?24:10)+',3,'+a+')';
+    ctx.lineWidth=0.3+Math.random()*1.4; ctx.stroke();
+  }
+  for(var k=0;k<4;k++){
+    var kx=Math.random()*c.width, ky=Math.random()*c.height;
+    var g=ctx.createRadialGradient(kx,ky,0,kx,ky,15+Math.random()*12);
+    g.addColorStop(0,'rgba(15,6,2,0.5)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,c.width,c.height);
+  }
+  // highlight streaks
+  for(var s=0;s<30;s++){
+    var sx=Math.random()*c.width;
+    ctx.beginPath(); ctx.moveTo(sx,0); ctx.lineTo(sx+(Math.random()-0.5)*8,c.height);
+    ctx.strokeStyle='rgba(120,60,20,'+(0.02+Math.random()*0.06)+')';
+    ctx.lineWidth=0.2+Math.random()*0.8; ctx.stroke();
+  }
+  var t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; return t;
+}
+
+function makeMetalTex(base,w,h){
+  var c=document.createElement('canvas'); c.width=w||256; c.height=h||128;
+  var ctx=c.getContext('2d');
+  ctx.fillStyle=base||'#3a3220'; ctx.fillRect(0,0,c.width,c.height);
+  // directional polish lines
+  for(var i=0;i<80;i++){
+    var y=Math.random()*c.height;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(c.width,y+(Math.random()-0.5)*3);
+    ctx.strokeStyle='rgba(255,255,255,'+(0.02+Math.random()*0.07)+')';
+    ctx.lineWidth=0.2+Math.random()*0.6; ctx.stroke();
+  }
+  // scratches
+  for(var j=0;j<30;j++){
+    ctx.beginPath();
+    ctx.moveTo(Math.random()*c.width,Math.random()*c.height);
+    ctx.lineTo(Math.random()*c.width,Math.random()*c.height);
+    ctx.strokeStyle='rgba(0,0,0,'+(0.1+Math.random()*0.2)+')';
+    ctx.lineWidth=0.3+Math.random()*0.5; ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function makeGoldTex(){
+  var c=document.createElement('canvas'); c.width=256; c.height=128;
+  var ctx=c.getContext('2d');
+  var g=ctx.createLinearGradient(0,0,256,128);
+  g.addColorStop(0,'#b07808'); g.addColorStop(0.35,'#e8b020');
+  g.addColorStop(0.65,'#c89018'); g.addColorStop(1,'#906008');
+  ctx.fillStyle=g; ctx.fillRect(0,0,256,128);
+  for(var i=0;i<50;i++){
+    ctx.beginPath(); ctx.moveTo(Math.random()*256,Math.random()*128);
+    ctx.lineTo(Math.random()*256,Math.random()*128);
+    ctx.strokeStyle='rgba(255,230,80,'+(0.03+Math.random()*0.08)+')';
+    ctx.lineWidth=0.3; ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function makeRopeTex(){
+  var c=document.createElement('canvas'); c.width=64; c.height=256;
+  var ctx=c.getContext('2d');
+  ctx.fillStyle='#4a3520'; ctx.fillRect(0,0,64,256);
+  for(var i=0;i<60;i++){
+    var y=i*4.3;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(64,y+2);
+    ctx.strokeStyle='rgba('+(80+Math.random()*40)+','+(50+Math.random()*20)+','+(20+Math.random()*15)+',0.6)';
+    ctx.lineWidth=1.5+Math.random(); ctx.stroke();
+  }
+  var t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(1,4); return t;
+}
+
+var woodTex    = makeWoodTex(512,256,'#3a1c07');
+var woodDarkTex= makeWoodTex(512,256,'#2a1205');
+var steelTex   = makeMetalTex('#2a2820',512,128);
+var ironTex    = makeMetalTex('#1e1c18',256,128);
+var goldTex    = makeGoldTex();
+var ropeTex    = makeRopeTex();
+woodTex.repeat.set(3,1); woodDarkTex.repeat.set(3,1);
+steelTex.repeat.set(4,1); steelTex.wrapS=steelTex.wrapT=THREE.RepeatWrapping;
+ironTex.wrapS=ironTex.wrapT=THREE.RepeatWrapping;
+
+// ══════════════════════════════════════════════════════════
+// MATERIALS
+// ══════════════════════════════════════════════════════════
+var woodMat = new THREE.MeshStandardMaterial({
+  map:woodTex, color:0x5a2808, roughness:0.8, metalness:0.0
+});
+var woodDarkMat = new THREE.MeshStandardMaterial({
+  map:woodDarkTex, color:0x3a1a06, roughness:0.88, metalness:0.0
+});
+var steelMat = new THREE.MeshStandardMaterial({
+  map:steelTex, color:0x303028, roughness:0.35, metalness:0.92
+});
+var darkSteelMat = new THREE.MeshStandardMaterial({
+  map:ironTex, color:0x1c1c18, roughness:0.45, metalness:0.88
+});
+var ironMat = new THREE.MeshStandardMaterial({
+  map:ironTex, color:0x252318, roughness:0.55, metalness:0.82
+});
+var goldMat = new THREE.MeshStandardMaterial({
+  map:goldTex, color:0xc88010, roughness:0.2, metalness:1.0,
+  emissive:0x3a2000, emissiveIntensity:0.3
+});
+var brassMat = new THREE.MeshStandardMaterial({
+  map:goldTex, color:0xa06820, roughness:0.28, metalness:0.9
+});
+var ropeMat = new THREE.MeshStandardMaterial({
+  map:ropeTex, color:0x5a3c18, roughness:0.95, metalness:0.0
+});
+var matchMat = new THREE.MeshStandardMaterial({
+  color:0x3a2810, roughness:0.98, metalness:0.0
+});
+var matchGlowMat = new THREE.MeshStandardMaterial({
+  color:0xff4400, roughness:0.5, metalness:0.0,
+  emissive:0xff3300, emissiveIntensity:1.2,
+  transparent:true, opacity:0.9
+});
+var leatherMat = new THREE.MeshStandardMaterial({
+  color:0x1a0d05, roughness:0.95, metalness:0.0
+});
+
+// ══════════════════════════════════════════════════════════
+// LIGHTS
+// ══════════════════════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x1a1008, 0.5));
+
+var keyLight = new THREE.SpotLight(0xffa040, 100, 30, Math.PI/6, 0.3, 1.5);
+keyLight.position.set(3, 6, 5);
+keyLight.castShadow=true;
+keyLight.shadow.mapSize.set(2048,2048);
+keyLight.shadow.bias=-0.001;
+scene.add(keyLight); scene.add(keyLight.target);
+
+var fillLight = new THREE.PointLight(0xff5520, 20, 15, 2);
+fillLight.position.set(-5, 2, 3);
+scene.add(fillLight);
+
+var rimLight = new THREE.DirectionalLight(0xb07018, 0.8);
+rimLight.position.set(0, 3, -7);
+scene.add(rimLight);
+
+var bounceLight = new THREE.PointLight(0x804010, 5, 10, 2);
+bounceLight.position.set(0, -2, 1);
+scene.add(bounceLight);
+
+// match glow light
+var matchLight = new THREE.PointLight(0xff4400, 2.5, 2, 2);
+matchLight.position.set(0.4, 0.2, 0.5);
+scene.add(matchLight);
+
+// Ground
+var ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(20,20),
+  new THREE.MeshStandardMaterial({color:0x080503,roughness:1,metalness:0})
+);
+ground.rotation.x=-Math.PI/2; ground.position.y=-2.2;
+ground.receiveShadow=true; scene.add(ground);
+
+// ══════════════════════════════════════════════════════════
+// HELPERS
+// ══════════════════════════════════════════════════════════
+function box(w,h,d,mat,px,py,pz,rx,ry,rz){
+  px=px||0;py=py||0;pz=pz||0;rx=rx||0;ry=ry||0;rz=rz||0;
+  var m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(px,py,pz); m.rotation.set(rx,ry,rz);
+  m.castShadow=true; m.receiveShadow=true; return m;
+}
+function cyl(rt,rb,h,seg,mat,px,py,pz,rx,ry,rz){
+  px=px||0;py=py||0;pz=pz||0;rx=rx||0;ry=ry||0;rz=rz||0;
+  var m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat);
+  m.position.set(px,py,pz); m.rotation.set(rx,ry,rz);
+  m.castShadow=true; return m;
+}
+function sph(r,mat,px,py,pz){
+  px=px||0;py=py||0;pz=pz||0;
+  var m=new THREE.Mesh(new THREE.SphereGeometry(r,14,14),mat);
+  m.position.set(px,py,pz); m.castShadow=true; return m;
+}
+
+// ══════════════════════════════════════════════════════════
+// MUSKET GROUP
+// musket lies horizontally along X axis
+// barrel tip at x=+4.5, stock butt at x=-4.5
+// ══════════════════════════════════════════════════════════
+var musket = new THREE.Group();
+scene.add(musket);
+
+// tilt slightly for dramatic presentation
+musket.rotation.z = 0.18;  // slight upward tilt of barrel
+musket.rotation.y = 0.0;
+
+// ── BARREL ────────────────────────────────────────────────
+// Main octagonal barrel (approximate with 8-sided cylinder)
+var barrelGroup = new THREE.Group();
+musket.add(barrelGroup);
+
+// Outer barrel – tapered slightly toward muzzle
+var barrelMesh = cyl(0.095, 0.11, 7.0, 8, steelMat, 0,0,0, 0,0,Math.PI/2);
+barrelGroup.add(barrelMesh);
+
+// Barrel bore (dark inner)
+var boreMesh = cyl(0.06, 0.06, 7.1, 8, darkSteelMat, 0,0,0, 0,0,Math.PI/2);
+barrelGroup.add(boreMesh);
+
+// Muzzle flare / crown
+var muzzle = cyl(0.13,0.10,0.18,12,steelMat, 3.55,0,0, 0,0,Math.PI/2);
+barrelGroup.add(muzzle);
+var muzzleRing = new THREE.Mesh(new THREE.TorusGeometry(0.115,0.025,10,20), goldMat);
+muzzleRing.position.set(3.46,0,0); muzzleRing.rotation.z=Math.PI/2;
+barrelGroup.add(muzzleRing);
+
+// Decorative bands along barrel
+[-2.5, -0.5, 1.0, 2.5].forEach(function(x){
+  var band = new THREE.Mesh(new THREE.TorusGeometry(0.115,0.018,10,20), brassMat);
+  band.position.set(x,0,0); band.rotation.z=Math.PI/2;
+  barrelGroup.add(band);
+});
+
+// Touch hole (small bump on top of barrel)
+var touchHole = cyl(0.025,0.025,0.06,8,ironMat, -0.2,0.11,0);
+barrelGroup.add(touchHole);
+
+// Barrel flat sections (sight rib on top)
+var sightRib = box(5.5,0.04,0.04,darkSteelMat,0.6,0.105,0);
+barrelGroup.add(sightRib);
+
+// Front sight
+var frontSight = box(0.04,0.08,0.04,steelMat,3.2,0.14,0);
+barrelGroup.add(frontSight);
+
+// Rear sight (notch block)
+var rearSight = box(0.1,0.065,0.07,steelMat,-0.4,0.13,0);
+barrelGroup.add(rearSight);
+// notch cut
+var notch = box(0.04,0.04,0.08,darkSteelMat,-0.4,0.148,0);
+barrelGroup.add(notch);
+
+// ── STOCK (wooden) ─────────────────────────────────────────
+var stockGroup = new THREE.Group();
+musket.add(stockGroup);
+
+// Forestock (under barrel, forward of lock)
+var forestock = new THREE.Mesh(
+  new THREE.BoxGeometry(5.2, 0.28, 0.32), woodMat
+);
+forestock.position.set(0.9, -0.14, 0);
+forestock.castShadow=true; forestock.receiveShadow=true;
+stockGroup.add(forestock);
+
+// Forestock taper toward muzzle
+var foretip = new THREE.Mesh(new THREE.BoxGeometry(1.5,0.18,0.22),woodMat);
+foretip.position.set(2.9,-0.16,0);
+stockGroup.add(foretip);
+
+// Forestock nose cap (brass)
+var noseCap = box(0.22,0.25,0.36,brassMat, 3.5,-0.14,0);
+stockGroup.add(noseCap);
+
+// Wrist / grip area
+var wrist = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.38,0.35),woodDarkMat);
+wrist.position.set(-1.8,-0.06,0);
+wrist.castShadow=true; stockGroup.add(wrist);
+
+// Pistol grip curve (approximated with rotated boxes)
+var grip1 = box(0.9,0.45,0.33,woodDarkMat,-2.7,-0.15,0, 0,0,0.15);
+var grip2 = box(0.7,0.42,0.32,woodDarkMat,-3.2,-0.35,0, 0,0,0.28);
+stockGroup.add(grip1,grip2);
+
+// Trigger guard (brass curved piece)
+var tGuardGroup = new THREE.Group();
+tGuardGroup.position.set(-2.2,-0.28,0);
+stockGroup.add(tGuardGroup);
+
+var tguardCurve = new THREE.Mesh(new THREE.TorusGeometry(0.38,0.035,8,20,Math.PI),brassMat);
+tguardCurve.rotation.z=Math.PI/2;
+tGuardGroup.add(tguardCurve);
+tGuardGroup.add(cyl(0.035,0.035,0.36,8,brassMat,0,0,0, 0,0,0));
+// front guard post
+tGuardGroup.add(cyl(0.032,0.032,0.25,8,brassMat,0.36,-0.17,0, 0,0,Math.PI/2));
+
+// Trigger
+var trigger = box(0.04,0.28,0.06,ironMat,-2.2,-0.22,0, 0,0,0.12);
+stockGroup.add(trigger);
+
+// Butt stock – widening toward heel
+var butt1 = box(1.4,0.52,0.42,woodMat,-3.85,-0.1,0, 0,0,-0.08);
+var butt2 = box(1.0,0.72,0.45,woodMat,-4.55,-0.18,0, 0,0,-0.14);
+var butt3 = box(0.55,0.82,0.44,woodMat,-5.05,-0.28,0, 0,0,-0.2);
+stockGroup.add(butt1,butt2,butt3);
+
+// Butt plate (iron)
+var buttPlate = box(0.12,0.88,0.48,ironMat,-5.32,-0.28,0);
+stockGroup.add(buttPlate);
+// Butt plate screws
+[0.18,-0.18].forEach(function(z){
+  stockGroup.add(sph(0.04,brassMat,-5.32,-0.0,z));
+  stockGroup.add(sph(0.04,brassMat,-5.32,-0.5,z));
+});
+
+// Cheekpiece (slight swell on left side of stock)
+var cheek = box(1.8,0.2,0.12,woodDarkMat,-3.8,-0.04,-0.2);
+cheek.rotation.z=0.05;
+stockGroup.add(cheek);
+
+// Stock carving / decorative inlay lines
+[-1.0,-0.5,0.0,0.5].forEach(function(x){
+  stockGroup.add(box(0.02,0.3,0.34,woodDarkMat,x+0.5,-0.14,0));
+});
+
+// ── MATCHLOCK MECHANISM ────────────────────────────────────
+var lockGroup = new THREE.Group();
+lockGroup.position.set(-0.5, 0.06, 0.21);
+musket.add(lockGroup);
+
+// Lock plate (side plate, brass/iron)
+var lockPlate = box(1.4,0.7,0.08,brassMat, 0,0,0);
+lockGroup.add(lockPlate);
+
+// Lock plate border engraving (thin frame)
+lockGroup.add(box(1.44,0.74,0.05,ironMat,0,0,-0.02));
+
+// Cock/serpentine arm (S-shaped match holder)
+var cockGroup = new THREE.Group();
+cockGroup.position.set(-0.1, 0.12, 0.06);
+lockGroup.add(cockGroup);
+
+// Lower arm of serpentine
+var cockLower = box(0.12,0.44,0.07,ironMat,0,-0.18,0, 0,0,0.3);
+cockGroup.add(cockLower);
+// Upper arm curves back
+var cockUpper = box(0.1,0.38,0.07,ironMat,0.12,0.12,0, 0,0,-0.5);
+cockGroup.add(cockUpper);
+// Pivot pin
+cockGroup.add(cyl(0.04,0.04,0.2,10,brassMat, 0,0,0.06, Math.PI/2,0,0));
+
+// Match holder jaws at top of serpentine
+var jawGroup = new THREE.Group();
+jawGroup.position.set(0.22, 0.3, 0.06);
+lockGroup.add(jawGroup);
+jawGroup.add(box(0.18,0.05,0.08,ironMat,0, 0.04,0));
+jawGroup.add(box(0.18,0.05,0.08,ironMat,0,-0.04,0));
+// Jaw screw
+jawGroup.add(cyl(0.025,0.025,0.12,8,brassMat,0,0,0.06,Math.PI/2,0,0));
+
+// Pan (powder pan)
+var panGroup = new THREE.Group();
+panGroup.position.set(0.3, -0.08, 0.06);
+lockGroup.add(panGroup);
+
+var pan = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.06,0.22),brassMat);
+panGroup.add(pan);
+// Pan sides
+panGroup.add(box(0.3,0.1,0.04,brassMat,0,-0.02,0.1));
+panGroup.add(box(0.3,0.1,0.04,brassMat,0,-0.02,-0.1));
+
+// Pan cover (open)
+var panCover = box(0.3,0.04,0.22,ironMat,0,0.04,-0.12, 0,0,0.6);
+panGroup.add(panCover);
+
+// Spring visible on lock plate
+lockGroup.add(box(0.5,0.04,0.04,ironMat,-0.3,-0.2,0.05));
+lockGroup.add(box(0.3,0.04,0.04,ironMat,-0.3,-0.28,0.05,0,0,0.3));
+
+// Sear / internal springs (decorative bumps)
+lockGroup.add(sph(0.04,brassMat,-0.5,-0.05,0.06));
+lockGroup.add(sph(0.04,brassMat,-0.5,-0.22,0.06));
+
+// ── MATCH (slow match / fuse) ─────────────────────────────
+var matchGroup = new THREE.Group();
+matchGroup.position.set(0.12, 0.36, 0.28);
+musket.add(matchGroup);
+
+// Rope/cord body
+var matchRope = cyl(0.025,0.025,1.2,8,ropeMat,0,0,0, 0,0,Math.PI/2);
+matchGroup.add(matchRope);
+// Loose dangling end
+var matchEnd1 = cyl(0.022,0.018,0.5,8,ropeMat,0.7,0,0, 0.3,0,Math.PI/2);
+matchGroup.add(matchEnd1);
+var matchEnd2 = cyl(0.018,0.012,0.35,8,ropeMat,0.85,0.06,0, 0.5,0,Math.PI/2);
+matchGroup.add(matchEnd2);
+
+// Glowing ember tip
+var ember = sph(0.038,matchGlowMat,0.62,0,0);
+matchGroup.add(ember);
+var ember2 = sph(0.025,matchGlowMat,0.64,0.02,0);
+matchGroup.add(ember2);
+
+// ── RAMROD (under barrel) ─────────────────────────────────
+var ramrodGroup = new THREE.Group();
+musket.add(ramrodGroup);
+
+var ramrod = cyl(0.04,0.038,6.5,10,woodMat,0.2,-0.26,0, 0,0,Math.PI/2);
+ramrodGroup.add(ramrod);
+// Ramrod tip (brass)
+var ramTip = cyl(0.048,0.04,0.18,10,brassMat,3.4,-0.26,0, 0,0,Math.PI/2);
+ramrodGroup.add(ramTip);
+// Ramrod pipes (barrel loops holding rod)
+[-1.5,0.5,2.2].forEach(function(x){
+  var pipe = new THREE.Mesh(new THREE.TorusGeometry(0.075,0.025,8,16),brassMat);
+  pipe.position.set(x,-0.27,0); pipe.rotation.z=Math.PI/2;
+  ramrodGroup.add(pipe);
+});
+
+// ── BARREL BANDS (wood-to-barrel attachment) ───────────────
+[-2.0,0.0,1.8].forEach(function(x){
+  var bb = new THREE.Mesh(new THREE.TorusGeometry(0.12,0.03,10,20),ironMat);
+  bb.position.set(x,-0.04,0); bb.rotation.z=Math.PI/2;
+  musket.add(bb);
+  // spring clip on side
+  musket.add(box(0.06,0.1,0.04,ironMat,x,-0.16,-0.14));
+});
+
+// ── SLING SWIVELS ─────────────────────────────────────────
+[[-1.0, -0.28],[1.5,-0.18]].forEach(function(p){
+  var swiv = new THREE.Mesh(new THREE.TorusGeometry(0.07,0.022,8,16),ironMat);
+  swiv.position.set(p[0],p[1],0); swiv.rotation.x=Math.PI/2;
+  musket.add(swiv);
+  musket.add(cyl(0.018,0.018,0.12,8,ironMat,p[0],p[1]-0.1,0));
+});
+
+// ── DECORATIVE BRASS ESCUTCHEONS ──────────────────────────
+// Lock screws visible on opposite side
+[-0.4,0.4].forEach(function(x){
+  musket.add(sph(0.045,brassMat,x,-0.08,-0.2));
+});
+
+// ── FLINTLOCK STYLE ENGRAVING on stock (dark inlay) ───────
+var inlay1 = box(0.8,0.12,0.01,woodDarkMat,-1.5,-0.08,-0.168, 0,0,0.1);
+musket.add(inlay1);
+var inlay2 = box(0.5,0.08,0.01,woodDarkMat,-2.1,-0.12,-0.168);
+musket.add(inlay2);
+
+// ══════════════════════════════════════════════════════════
+// FLOATING DUST
+// ══════════════════════════════════════════════════════════
+var dustCount=150;
+var dustGeo=new THREE.BufferGeometry();
+var dustPos=new Float32Array(dustCount*3);
+var dustVel=[];
+for(var i=0;i<dustCount;i++){
+  dustPos[i*3]  =(Math.random()-0.5)*12;
+  dustPos[i*3+1]=(Math.random()-0.5)*6+0.5;
+  dustPos[i*3+2]=(Math.random()-0.5)*8;
+  dustVel.push({vx:(Math.random()-0.5)*0.003,vy:0.001+Math.random()*0.003,vz:(Math.random()-0.5)*0.003});
+}
+dustGeo.setAttribute('position',new THREE.BufferAttribute(dustPos,3));
+var dustMat2=new THREE.PointsMaterial({color:0xb07830,size:0.035,transparent:true,opacity:0.45,sizeAttenuation:true});
+scene.add(new THREE.Points(dustGeo,dustMat2));
+
+// ══════════════════════════════════════════════════════════
+// ANIMATION
+// ══════════════════════════════════════════════════════════
+var phase='appear', elapsed=0, rotsDone=0, accumulated=0;
+musket.scale.set(0,0,0);
+musket.position.y = -4;
+
+var clock = new THREE.Clock();
+
+function animate(){
+  requestAnimationFrame(animate);
+  var dt=Math.min(clock.getDelta(),0.05);
+  elapsed+=dt;
+
+  // Light flicker
+  fillLight.intensity  =18+Math.sin(elapsed*6.1)*3+Math.sin(elapsed*13.7)*1.5;
+  bounceLight.intensity=4 +Math.sin(elapsed*9.1+1)*1.5;
+  keyLight.intensity   =95 +Math.sin(elapsed*4.8+0.4)*8;
+
+  // Match ember glow pulse
+  matchLight.intensity=2.0+Math.sin(elapsed*3.5)*0.8+Math.sin(elapsed*7.2)*0.3;
+  matchLight.color.setHSL(0.06+Math.sin(elapsed*4)*0.02, 1.0, 0.5);
+
+  // Dust
+  for(var i=0;i<dustCount;i++){
+    dustPos[i*3]  +=dustVel[i].vx;
+    dustPos[i*3+1]+=dustVel[i].vy;
+    dustPos[i*3+2]+=dustVel[i].vz;
+    if(dustPos[i*3+1]>4){ dustPos[i*3+1]=-2; dustPos[i*3]=(Math.random()-0.5)*12; }
+  }
+  dustGeo.attributes.position.needsUpdate=true;
+
+  // ── Phases ───────────────────────────────────────────────
+  if(phase==='appear'){
+    var t=Math.min(elapsed/2.0,1);
+    var eased=t<0.75?4*t*t*t:1-(Math.pow(-2*t+2,3)/2);
+    var s=eased+(t>0.85?Math.sin((t-0.85)/0.15*Math.PI)*0.06:0);
+    s=Math.min(s,1.05);
+    musket.scale.set(s,s,s);
+    musket.position.y=-4*(1-eased)*(1-eased);
+    musket.rotation.y=-1.2*(1-eased);
+    if(elapsed>2.5){phase='wait';elapsed=0;}
+  }
+  else if(phase==='wait'){
+    musket.scale.set(1,1,1);
+    musket.position.y=Math.sin(elapsed*1.2)*0.025;
+    if(elapsed>1.2){phase='rotate';elapsed=0;rotsDone=0;accumulated=0;}
+  }
+  else if(phase==='rotate'){
+    var rotSpeed=2.8;
+    musket.rotation.y=accumulated+Math.min(elapsed/rotSpeed,1)*Math.PI*2;
+    musket.position.y=Math.sin(elapsed*1.6)*0.02;
+    if(elapsed>=rotSpeed){
+      accumulated+=Math.PI*2;
+      elapsed=0; rotsDone++;
+      if(rotsDone>=3){phase='idle';musket.rotation.y=0;elapsed=0;}
+    }
+  }
+  else if(phase==='idle'){
+    musket.position.y=Math.sin(elapsed*0.8)*0.04;
+    musket.rotation.y+=0.0035;
+    musket.rotation.x=Math.sin(elapsed*0.3)*0.03;
+  }
+
+  renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener('resize',function(){
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>

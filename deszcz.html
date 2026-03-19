@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Deszcz</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;width:100vw;height:100vh;overflow:hidden}
+canvas{display:block}
+#title{position:absolute;top:16px;left:50%;transform:translateX(-50%);
+  color:#4a6880;font-family:'Palatino Linotype',serif;font-size:13px;
+  letter-spacing:8px;text-transform:uppercase;
+  text-shadow:0 0 30px #2060a044;white-space:nowrap;
+  opacity:0;animation:fin 3s ease 1s forwards}
+#sub{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+  color:#1a2830;font-family:'Palatino Linotype',serif;font-size:9px;
+  letter-spacing:5px;opacity:0;animation:fin 2s ease 4s forwards}
+@keyframes fin{to{opacity:1}}
+</style>
+</head>
+<body>
+<div id="title">D E S Z C Z</div>
+<div id="sub">Październikowa noc · Gdzieś nad Bałtykiem</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+try {
+
+// ══ RENDERER ════════════════════════════════════════
+var renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = false;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.9;
+document.body.appendChild(renderer.domElement);
+
+var scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05080e);
+scene.fog = new THREE.FogExp2(0x07090f, 0.048);
+
+var camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 80);
+camera.position.set(0, 4.5, 12);
+camera.lookAt(0, 1.5, 0);
+
+// ══ TEXTURES ════════════════════════════════════════
+function makeTex(w,h,fn){
+  var cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  fn(cv.getContext('2d'),w,h);
+  var t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;
+  return t;
+}
+
+// Wet cobblestone ground
+var groundTex = makeTex(512,512,function(ctx,w,h){
+  ctx.fillStyle='#0a0c0e'; ctx.fillRect(0,0,w,h);
+  // Cobbles
+  var stones=[
+    {x:30,y:30,r:22},{x:80,y:28,r:18},{x:130,y:32,r:20},{x:178,y:26,r:22},
+    {x:228,y:30,r:19},{x:278,y:28,r:21},{x:328,y:32,r:18},{x:378,y:28,r:22},
+    {x:428,y:30,r:20},{x:480,y:28,r:18},
+    {x:18,y:76,r:20},{x:60,y:80,r:22},{x:108,y:74,r:19},{x:158,y:78,r:21},
+    {x:206,y:76,r:20},{x:255,y:80,r:22},{x:305,y:74,r:19},{x:355,y:78,r:21},
+    {x:404,y:76,r:20},{x:454,y:80,r:22},{x:500,y:74,r:18},
+  ];
+  // Generate full grid of cobbles
+  for(var row=0;row<9;row++){
+    for(var col=0;col<10;col++){
+      var ox=(row%2)*25;
+      var cx=col*52+ox+10+Math.random()*8;
+      var cy=row*56+18+Math.random()*8;
+      var cr=18+Math.random()*8;
+      var v=0.55+Math.random()*0.35;
+      // Stone base
+      ctx.beginPath();
+      ctx.ellipse(cx,cy,cr,cr*0.72,Math.random()*0.5,0,Math.PI*2);
+      var gr=ctx.createRadialGradient(cx-cr*0.2,cy-cr*0.2,0,cx,cy,cr);
+      var rv=Math.floor(22*v),gv=Math.floor(28*v),bv=Math.floor(32*v);
+      gr.addColorStop(0,'rgb('+(rv+12)+','+(gv+12)+','+(bv+14)+')');
+      gr.addColorStop(0.6,'rgb('+rv+','+gv+','+bv+')');
+      gr.addColorStop(1,'rgb('+(rv-6)+','+(gv-6)+','+(bv-4)+')');
+      ctx.fillStyle=gr; ctx.fill();
+      // Wet sheen highlight
+      ctx.beginPath();
+      ctx.ellipse(cx-cr*0.25,cy-cr*0.28,cr*0.35,cr*0.18,Math.PI*0.2,0,Math.PI*2);
+      ctx.fillStyle='rgba(80,100,120,0.22)'; ctx.fill();
+      // Mortar gap
+      ctx.beginPath();
+      ctx.ellipse(cx,cy,cr+1,cr*0.72+1,0,0,Math.PI*2);
+      ctx.strokeStyle='rgba(4,5,6,0.9)'; ctx.lineWidth=2; ctx.stroke();
+    }
+  }
+  // Water puddles — reflective dark patches
+  for(var pu=0;pu<8;pu++){
+    var pg=ctx.createRadialGradient(Math.random()*w,Math.random()*h,0,
+      Math.random()*w,Math.random()*h,20+Math.random()*45);
+    pg.addColorStop(0,'rgba(15,22,32,0.65)');
+    pg.addColorStop(0.5,'rgba(10,16,24,0.4)');
+    pg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=pg; ctx.fillRect(0,0,w,h);
+  }
+});
+groundTex.repeat.set(4,4);
+
+// Wall — old plaster / brick
+var wallTex = makeTex(512,512,function(ctx,w,h){
+  ctx.fillStyle='#0c0e10'; ctx.fillRect(0,0,w,h);
+  var bh=28, bw=60;
+  for(var row=0;row<Math.ceil(h/bh);row++){
+    var xo=(row%2)*bw*0.5;
+    for(var col=0;col<Math.ceil(w/bw)+1;col++){
+      var x=col*bw+xo-bw, y=row*bh;
+      var v=0.45+Math.random()*0.4;
+      ctx.fillStyle='rgb('+Math.floor(28*v)+','+Math.floor(24*v)+','+Math.floor(20*v)+')';
+      ctx.fillRect(x+2,y+2,bw-3,bh-3);
+      ctx.fillStyle='rgba(3,3,4,0.88)';
+      ctx.fillRect(x,y,bw,2); ctx.fillRect(x,y,2,bh);
+    }
+  }
+  // Water streaks running down
+  for(var ws=0;ws<18;ws++){
+    var wx=Math.random()*w;
+    ctx.beginPath(); ctx.moveTo(wx,0); ctx.lineTo(wx+(Math.random()-0.5)*12,h);
+    ctx.strokeStyle='rgba(15,22,32,'+(0.08+Math.random()*0.14)+')';
+    ctx.lineWidth=1+Math.random()*2.5; ctx.stroke();
+  }
+});
+wallTex.repeat.set(3,2);
+
+// ══ MATERIALS ═══════════════════════════════════════
+var matGround = new THREE.MeshStandardMaterial({
+  map:groundTex, color:0x182028, roughness:0.12, metalness:0.55,
+  emissive:0x040810, emissiveIntensity:0.08
+});
+var matWall = new THREE.MeshStandardMaterial({
+  map:wallTex, color:0x1a1c20, roughness:0.88, metalness:0.04
+});
+
+var matLamp = new THREE.MeshStandardMaterial({
+  color:0x303840, roughness:0.22, metalness:0.95
+});
+var matGlass = new THREE.MeshStandardMaterial({
+  color:0xfff0c0, emissive:0xffcc50, emissiveIntensity:1.8,
+  roughness:0.1, transparent:true, opacity:0.82
+});
+
+// ══ SCENE GEOMETRY ═══════════════════════════════════
+
+// Ground — wet cobblestones
+var gnd = new THREE.Mesh(new THREE.PlaneGeometry(60,60), matGround);
+gnd.rotation.x=-Math.PI/2; gnd.position.y=0; scene.add(gnd);
+
+// Background wall
+var wall = new THREE.Mesh(new THREE.PlaneGeometry(30,10), matWall);
+wall.position.set(0,5,-8); scene.add(wall);
+
+// Side walls
+var wallL = new THREE.Mesh(new THREE.PlaneGeometry(20,10), matWall);
+wallL.position.set(-12,5,2); wallL.rotation.y=Math.PI/2; scene.add(wallL);
+var wallR = new THREE.Mesh(new THREE.PlaneGeometry(20,10), matWall);
+wallR.position.set(12,5,2); wallR.rotation.y=-Math.PI/2; scene.add(wallR);
+
+// Street lamp post
+var postGeo = new THREE.CylinderGeometry(0.055,0.07,5.8,10);
+var post = new THREE.Mesh(postGeo, matLamp);
+post.position.set(-3.5,2.9,-4); scene.add(post);
+// Arm
+var armGeo = new THREE.CylinderGeometry(0.04,0.04,1.4,8);
+var arm = new THREE.Mesh(armGeo, matLamp);
+arm.rotation.z=-Math.PI/2; arm.position.set(-2.85,5.9,-4); scene.add(arm);
+// Lantern body
+var lanternGeo = new THREE.BoxGeometry(0.32,0.45,0.32);
+var lantern = new THREE.Mesh(lanternGeo, matLamp);
+lantern.position.set(-2.22,5.82,-4); scene.add(lantern);
+// Lantern glass
+var glassGeo = new THREE.BoxGeometry(0.22,0.32,0.22);
+var glass = new THREE.Mesh(glassGeo, matGlass);
+glass.position.set(-2.22,5.82,-4); scene.add(glass);
+
+// Lamp light
+var lampL = new THREE.PointLight(0xffdd80, 18, 14, 1.6);
+lampL.position.set(-2.22, 5.75, -4);
+scene.add(lampL);
+
+// Puddle reflection under lamp — brighter disc
+var puddleGeo = new THREE.CircleGeometry(1.8, 32);
+var puddleMat = new THREE.MeshStandardMaterial({
+  color:0x304050, roughness:0.02, metalness:0.95,
+  emissive:0x1a1208, emissiveIntensity:0.4,
+  transparent:true, opacity:0.7
+});
+var puddle = new THREE.Mesh(puddleGeo, puddleMat);
+puddle.rotation.x=-Math.PI/2; puddle.position.set(-2.22,0.002,-4);
+scene.add(puddle);
+
+// ══ LIGHTS ═══════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x050810, 0.25));
+// Cold moonlight from above
+var moonL = new THREE.DirectionalLight(0x8090c0, 0.18);
+moonL.position.set(5,20,-5); scene.add(moonL);
+// Distant blue-cold fill
+var coldL = new THREE.PointLight(0x203860, 2.5, 30, 1.4);
+coldL.position.set(6, 8, 8); scene.add(coldL);
+
+// ══ RAIN SYSTEM ═════════════════════════════════════
+var RAIN_COUNT = 6000;
+
+// Rain drops — thin line segments as BufferGeometry
+var rainGeo = new THREE.BufferGeometry();
+var rainPos = new Float32Array(RAIN_COUNT * 6); // 2 points per segment × 3 coords
+var rainVX  = new Float32Array(RAIN_COUNT);
+var rainVY  = new Float32Array(RAIN_COUNT);
+var rainVZ  = new Float32Array(RAIN_COUNT);
+var rainLen = new Float32Array(RAIN_COUNT);
+
+var AREA = 28;
+var RAIN_VX = 1.2, RAIN_VY = -14, RAIN_VZ = 0.3;
+var DROP_LEN = 0.38;
+
+for(var i=0; i<RAIN_COUNT; i++){
+  var rx = (Math.random()-0.5)*AREA*2;
+  var ry = Math.random()*20;
+  var rz = (Math.random()-0.5)*AREA;
+  rainPos[i*6+0] = rx;
+  rainPos[i*6+1] = ry;
+  rainPos[i*6+2] = rz;
+  rainPos[i*6+3] = rx + RAIN_VX*DROP_LEN*0.07;
+  rainPos[i*6+4] = ry + RAIN_VY*DROP_LEN*0.07;
+  rainPos[i*6+5] = rz;
+  // Individual speed variation
+  var spd = 0.8 + Math.random()*0.4;
+  rainVX[i] = RAIN_VX*spd;
+  rainVY[i] = RAIN_VY*spd;
+  rainVZ[i] = RAIN_VZ*(Math.random()-0.5)*2;
+  rainLen[i] = 0.06+Math.random()*0.04;
+}
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+
+var rainMat = new THREE.LineBasicMaterial({
+  color:0x7090b0, transparent:true, opacity:0.38, vertexColors:false
+});
+var rainLines = new THREE.LineSegments(rainGeo, rainMat);
+scene.add(rainLines);
+
+// ══ SPLASH SYSTEM ═══════════════════════════════════
+var SPLASH_COUNT = 120;
+var splashes = [];
+var ringGeo = new THREE.RingGeometry(0,0.01,8);
+
+
+for(var si=0; si<SPLASH_COUNT; si++){
+  var sm = new THREE.Mesh(ringGeo.clone(), new THREE.MeshStandardMaterial({color:0x8ab0c8,transparent:true,opacity:0,side:THREE.DoubleSide,roughness:0.1,metalness:0.5}));
+  sm.rotation.x=-Math.PI/2;
+  sm.position.set((Math.random()-0.5)*24, 0.01, (Math.random()-0.5)*20);
+  scene.add(sm);
+  splashes.push({
+    mesh:sm,
+    timer: Math.random()*1.2,  // staggered start
+    duration: 0.5+Math.random()*0.3,
+    x: (Math.random()-0.5)*24,
+    z: (Math.random()-0.5)*20
+  });
+}
+
+// ══ MIST / FOG PATCHES ══════════════════════════════
+// Large transparent spheres as mist volumes
+
+for(var mi=0; mi<6; mi++){
+  var ms = new THREE.Mesh(new THREE.SphereGeometry(3+Math.random()*3,8,6), matWall);
+  ms.position.set((Math.random()-0.5)*16, 0.8+Math.random()*1.5, (Math.random()-0.5)*12);
+  scene.add(ms);
+}
+
+// ══ AUDIO — rain + thunder ══════════════════════════
+var audioCtx=null;
+var rainNode=null, thunderTimer=18+Math.random()*25;
+
+function initAudio(){
+  if(audioCtx) return;
+  audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+
+  // Continuous rain noise
+  var bufLen=audioCtx.sampleRate*2;
+  var buf=audioCtx.createBuffer(2,bufLen,audioCtx.sampleRate);
+  for(var ch=0;ch<2;ch++){
+    var d=buf.getChannelData(ch);
+    for(var n=0;n<bufLen;n++) d[n]=(Math.random()*2-1);
+  }
+  var src=audioCtx.createBufferSource(); src.buffer=buf; src.loop=true;
+  var fHigh=audioCtx.createBiquadFilter(); fHigh.type='bandpass'; fHigh.frequency.value=2800; fHigh.Q.value=0.5;
+  var fLow=audioCtx.createBiquadFilter();  fLow.type='lowpass';   fLow.frequency.value=4500;
+  var gRain=audioCtx.createGain(); gRain.gain.value=0.18;
+  src.connect(fHigh); fHigh.connect(fLow); fLow.connect(gRain); gRain.connect(audioCtx.destination);
+  src.start();
+
+  // Low rumble layer
+  var buf2=audioCtx.createBuffer(1,audioCtx.sampleRate*3,audioCtx.sampleRate);
+  var d2=buf2.getChannelData(0);
+  for(var n2=0;n2<buf2.length;n2++) d2[n2]=(Math.random()*2-1);
+  var src2=audioCtx.createBufferSource(); src2.buffer=buf2; src2.loop=true;
+  var fRumble=audioCtx.createBiquadFilter(); fRumble.type='lowpass'; fRumble.frequency.value=180;
+  var gRumble=audioCtx.createGain(); gRumble.gain.value=0.09;
+  src2.connect(fRumble); fRumble.connect(gRumble); gRumble.connect(audioCtx.destination);
+  src2.start();
+}
+
+function playThunder(){
+  if(!audioCtx) return;
+  var now=audioCtx.currentTime;
+  var dur=3.5+Math.random()*2.5;
+
+  // Initial crack
+  var buf=audioCtx.createBuffer(1,audioCtx.sampleRate*0.15,audioCtx.sampleRate);
+  var d=buf.getChannelData(0);
+  for(var n=0;n<d.length;n++) d[n]=(Math.random()*2-1)*Math.pow(1-n/d.length,0.3);
+  var src=audioCtx.createBufferSource(), g=audioCtx.createGain(), f=audioCtx.createBiquadFilter();
+  f.type='lowpass'; f.frequency.value=300;
+  g.gain.setValueAtTime(0.9,now); g.gain.exponentialRampToValueAtTime(0.001,now+0.15);
+  src.buffer=buf; src.connect(f); f.connect(g); g.connect(audioCtx.destination); src.start(now);
+
+  // Rolling rumble
+  var buf2=audioCtx.createBuffer(1,audioCtx.sampleRate*dur,audioCtx.sampleRate);
+  var d2=buf2.getChannelData(0);
+  for(var n2=0;n2<d2.length;n2++) d2[n2]=(Math.random()*2-1)*Math.pow(1-n2/d2.length,0.6);
+  var src2=audioCtx.createBufferSource(), g2=audioCtx.createGain(), f2=audioCtx.createBiquadFilter();
+  f2.type='lowpass'; f2.frequency.value=120+Math.random()*80;
+  g2.gain.setValueAtTime(0,now);
+  g2.gain.linearRampToValueAtTime(0.55,now+0.08);
+  g2.gain.exponentialRampToValueAtTime(0.001,now+dur);
+  src2.buffer=buf2; src2.connect(f2); f2.connect(g2); g2.connect(audioCtx.destination); src2.start(now);
+}
+
+renderer.domElement.addEventListener('click',function(){initAudio();},{once:false});
+document.addEventListener('keydown',function(){initAudio();},{once:true});
+
+// ══ LIGHTNING ═══════════════════════════════════════
+var lightningFlash=0;
+var lightningL=new THREE.PointLight(0xc0d0ff,0,80,0.8);
+lightningL.position.set(0,30,0); scene.add(lightningL);
+// Lightning bolt (line flash)
+var boltPts=[new THREE.Vector3(4,18,0),new THREE.Vector3(3,13,0),
+             new THREE.Vector3(5,8,0), new THREE.Vector3(4,3,0),
+             new THREE.Vector3(4.5,0.5,0)];
+var boltGeo=new THREE.BufferGeometry().setFromPoints(boltPts);
+var boltMat=new THREE.LineBasicMaterial({color:0xd0e0ff,transparent:true,opacity:0});
+var bolt=new THREE.Line(boltGeo,boltMat);
+bolt.position.set(-5,0,-6);
+scene.add(bolt);
+
+// ══ CAMERA SWAY — gentle handheld feel ══════════════
+var camBase={x:0,y:4.5,z:12};
+var camSway={x:0,y:0,z:0};
+
+// ══ ANIMATE ═════════════════════════════════════════
+var clock=new THREE.Clock(), elapsed=0;
+
+// Fade in
+var fd=document.createElement('div');
+fd.style.cssText='position:absolute;top:0;left:0;width:100%;height:100%;background:#000;pointer-events:none;transition:opacity 3s ease';
+document.body.appendChild(fd);
+setTimeout(function(){fd.style.opacity='0';},100);
+
+function animate(){
+  requestAnimationFrame(animate);
+  var dt=Math.min(clock.getDelta(),0.05);
+  elapsed+=dt;
+
+  // ── Rain drop movement ─────────────────────────────
+  for(var i=0; i<RAIN_COUNT; i++){
+    // Move top point
+    rainPos[i*6+0] += rainVX[i]*dt;
+    rainPos[i*6+1] += rainVY[i]*dt;
+    rainPos[i*6+2] += rainVZ[i]*dt;
+    // Tail point follows
+    rainPos[i*6+3] = rainPos[i*6+0] + rainVX[i]*rainLen[i];
+    rainPos[i*6+4] = rainPos[i*6+1] + rainVY[i]*rainLen[i];
+    rainPos[i*6+5] = rainPos[i*6+2];
+    // Wrap when below ground
+    if(rainPos[i*6+1] < -0.5){
+      rainPos[i*6+0] = (Math.random()-0.5)*AREA*2;
+      rainPos[i*6+1] = 18+Math.random()*4;
+      rainPos[i*6+2] = (Math.random()-0.5)*AREA;
+    }
+  }
+  rainGeo.attributes.position.needsUpdate=true;
+
+  // ── Splash rings ───────────────────────────────────
+  splashes.forEach(function(sp){
+    sp.timer+=dt;
+    if(sp.timer>sp.duration){
+      // Reset to new random position
+      sp.timer=0;
+      sp.duration=0.45+Math.random()*0.35;
+      sp.x=(Math.random()-0.5)*24;
+      sp.z=(Math.random()-0.5)*20;
+      sp.mesh.position.set(sp.x,0.01,sp.z);
+    }
+    var t=sp.timer/sp.duration;
+    var r=t*0.28;
+    // Update ring geometry
+    var inner=Math.max(0,r-0.04);
+    sp.mesh.geometry.dispose();
+    sp.mesh.geometry=new THREE.RingGeometry(inner,r,10);
+    sp.mesh.material.opacity=0.45*(1-t)*(1-t);
+  });
+
+  // ── Lamp flicker ─────────────────────────────────
+  var lf=1+Math.sin(elapsed*4.2)*0.04+Math.sin(elapsed*11.7)*0.02;
+  lampL.intensity=17*lf;
+
+  // Puddle reflection shimmers
+  puddle.material.emissiveIntensity=0.35+Math.sin(elapsed*3.1)*0.1+Math.sin(elapsed*7.4)*0.05;
+
+  // ── Thunder / lightning timer ─────────────────────
+  thunderTimer-=dt;
+  if(thunderTimer<0){
+    thunderTimer=20+Math.random()*35;
+    playThunder();
+    lightningFlash=1.0;
+    boltMat.opacity=0.9;
+    // Randomise bolt shape
+    var pts=[new THREE.Vector3((Math.random()-0.5)*4,20,0)];
+    for(var bi=0;bi<5;bi++){
+      var last=pts[pts.length-1];
+      pts.push(new THREE.Vector3(last.x+(Math.random()-0.5)*3,
+        last.y-(3+Math.random()*3),last.z));
+    }
+    boltGeo.setFromPoints(pts);
+    bolt.position.set((Math.random()-0.5)*10,0,(Math.random()-0.5)*6-4);
+  }
+  // Decay flash
+  if(lightningFlash>0){
+    lightningFlash=Math.max(0,lightningFlash-dt*5);
+    lightningL.intensity=lightningFlash*60*(1+Math.sin(elapsed*40)*0.3);
+    boltMat.opacity=lightningFlash*0.9;
+    if(lightningFlash<0.05) boltMat.opacity=0;
+  }
+
+  // ── Camera gentle sway ───────────────────────────
+  camSway.x=Math.sin(elapsed*0.22)*0.12+Math.sin(elapsed*0.51)*0.06;
+  camSway.y=Math.sin(elapsed*0.18)*0.08+Math.sin(elapsed*0.43)*0.04;
+  camSway.z=Math.sin(elapsed*0.15)*0.05;
+  camera.position.set(camBase.x+camSway.x, camBase.y+camSway.y, camBase.z+camSway.z);
+  camera.lookAt(camSway.x*0.3, 1.5+camSway.y*0.5, 0);
+
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize',function(){
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+
+}catch(e){
+  document.body.innerHTML='<div style="color:red;padding:20px;font-family:monospace;white-space:pre">'+e.message+'\n'+e.stack+'</div>';
+}
+</script>
+</body>
+</html>

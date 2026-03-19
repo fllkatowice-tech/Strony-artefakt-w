@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>Skrzynia Skarbów</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#000; width:100vw; height:100vh; overflow:hidden; }
+canvas { display:block; }
+#title {
+  position:absolute; top:18px; left:50%; transform:translateX(-50%);
+  color:#d4a030; font-family:'Palatino Linotype',serif;
+  font-size:20px; letter-spacing:6px; text-transform:uppercase;
+  text-shadow:0 0 20px #c8922acc; opacity:0;
+  animation: fin 2s ease 1s forwards;
+}
+@keyframes fin { to { opacity:1; } }
+</style>
+</head>
+<body>
+<div id="title">⚔ &nbsp; S K A R B &nbsp; K R Ó L E S T W A &nbsp; ⚔</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════
+// SCENE
+// ══════════════════════════════════════════════════════════
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0a0603, 0.06);
+scene.background = new THREE.Color(0x080503);
+
+const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.01, 200);
+camera.position.set(0, 2.8, 8.5);
+camera.lookAt(0, 0.2, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.35;
+document.body.appendChild(renderer.domElement);
+
+// ══════════════════════════════════════════════════════════
+// PROCEDURAL TEXTURES
+// ══════════════════════════════════════════════════════════
+function makeWoodTex() {
+  const c = document.createElement('canvas'); c.width=512; c.height=512;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle='#3d1e08'; ctx.fillRect(0,0,512,512);
+  for(let i=0;i<140;i++){
+    const x=Math.random()*512;
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x+(Math.random()-0.5)*18,512);
+    ctx.strokeStyle=`rgba(${Math.random()>0.5?70:18},${Math.random()>0.5?28:12},4,${0.04+Math.random()*0.09})`;
+    ctx.lineWidth=0.4+Math.random()*1.6; ctx.stroke();
+  }
+  for(let k=0;k<3;k++){
+    const kx=Math.random()*512, ky=Math.random()*512;
+    const g=ctx.createRadialGradient(kx,ky,0,kx,ky,18+Math.random()*14);
+    g.addColorStop(0,'rgba(18,7,2,0.55)'); g.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,512,512);
+  }
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(2,1); return t;
+}
+
+function makeMetalTex(base) {
+  const c=document.createElement('canvas'); c.width=256; c.height=256;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle=base; ctx.fillRect(0,0,256,256);
+  for(let i=0;i<60;i++){
+    ctx.beginPath();
+    ctx.moveTo(Math.random()*256,Math.random()*256);
+    ctx.lineTo(Math.random()*256,Math.random()*256);
+    ctx.strokeStyle=`rgba(255,255,255,${0.04+Math.random()*0.1})`;
+    ctx.lineWidth=0.3+Math.random()*0.7; ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function makeGoldTex() {
+  const c=document.createElement('canvas'); c.width=256; c.height=256;
+  const ctx=c.getContext('2d');
+  const g=ctx.createLinearGradient(0,0,256,256);
+  g.addColorStop(0,'#c8900a'); g.addColorStop(0.3,'#f0c030');
+  g.addColorStop(0.6,'#d4a020'); g.addColorStop(1,'#a07010');
+  ctx.fillStyle=g; ctx.fillRect(0,0,256,256);
+  for(let i=0;i<40;i++){
+    ctx.beginPath();
+    ctx.moveTo(Math.random()*256,Math.random()*256);
+    ctx.lineTo(Math.random()*256,Math.random()*256);
+    ctx.strokeStyle=`rgba(255,240,100,${0.04+Math.random()*0.09})`;
+    ctx.lineWidth=0.4; ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+const woodTex  = makeWoodTex();
+const metalTex = makeMetalTex('#6a5828');
+const goldTex  = makeGoldTex();
+
+// ══════════════════════════════════════════════════════════
+// MATERIALS
+// ══════════════════════════════════════════════════════════
+const woodMat = new THREE.MeshStandardMaterial({
+  map:woodTex, color:0x5c2a08, roughness:0.82, metalness:0.0
+});
+const woodDarkMat = new THREE.MeshStandardMaterial({
+  map:woodTex, color:0x3d1c05, roughness:0.9, metalness:0.0
+});
+const ironMat = new THREE.MeshStandardMaterial({
+  map:metalTex, color:0x2a2218, roughness:0.55, metalness:0.85
+});
+const bronzeMat = new THREE.MeshStandardMaterial({
+  map:metalTex, color:0x6b4f1a, roughness:0.38, metalness:0.88
+});
+const goldMat = new THREE.MeshStandardMaterial({
+  map:goldTex, color:0xd4920c, roughness:0.18, metalness:1.0,
+  emissive:0x3a2500, emissiveIntensity:0.25
+});
+const goldBrightMat = new THREE.MeshStandardMaterial({
+  map:goldTex, color:0xf0b820, roughness:0.12, metalness:1.0,
+  emissive:0x5a3800, emissiveIntensity:0.4
+});
+const coinMat = new THREE.MeshStandardMaterial({
+  map:goldTex, color:0xf0c030, roughness:0.1, metalness:1.0,
+  emissive:0x6a4400, emissiveIntensity:0.5
+});
+const rubyMat = new THREE.MeshStandardMaterial({
+  color:0xcc0010, roughness:0.04, metalness:0.0,
+  emissive:0xff0000, emissiveIntensity:0.6,
+  transparent:true, opacity:0.88
+});
+const sapphireMat = new THREE.MeshStandardMaterial({
+  color:0x0020cc, roughness:0.04, metalness:0.0,
+  emissive:0x0000ff, emissiveIntensity:0.5,
+  transparent:true, opacity:0.85
+});
+const emeraldMat = new THREE.MeshStandardMaterial({
+  color:0x008830, roughness:0.05, metalness:0.0,
+  emissive:0x00cc44, emissiveIntensity:0.45,
+  transparent:true, opacity:0.88
+});
+const leatherMat = new THREE.MeshStandardMaterial({
+  color:0x1a0d05, roughness:0.95, metalness:0.0
+});
+
+// ══════════════════════════════════════════════════════════
+// LIGHTS
+// ══════════════════════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x2a1808, 0.6));
+
+const keyLight = new THREE.SpotLight(0xffa040, 120, 25, Math.PI/7, 0.35, 1.5);
+keyLight.position.set(2,7,4);
+keyLight.castShadow=true;
+keyLight.shadow.mapSize.set(2048,2048);
+keyLight.shadow.bias=-0.001;
+scene.add(keyLight); scene.add(keyLight.target);
+
+const fillLight = new THREE.PointLight(0xff6622, 30, 18, 2);
+fillLight.position.set(-4,2,3);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0xd4901a, 0.9);
+rimLight.position.set(-1,4,-6);
+scene.add(rimLight);
+
+const bounceLight = new THREE.PointLight(0xc87820, 8, 12, 2);
+bounceLight.position.set(0,-1,2);
+scene.add(bounceLight);
+
+const gemGlow = new THREE.PointLight(0xff2200, 1.2, 3, 2);
+gemGlow.position.set(0,0.4,1.2);
+scene.add(gemGlow);
+
+// Ground
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(14,14),
+  new THREE.MeshStandardMaterial({color:0x0a0603,roughness:1,metalness:0})
+);
+ground.rotation.x=-Math.PI/2; ground.position.y=-1.52;
+ground.receiveShadow=true; scene.add(ground);
+
+// ══════════════════════════════════════════════════════════
+// HELPER FUNCTIONS
+// ══════════════════════════════════════════════════════════
+function box(w,h,d,mat,px,py,pz){
+  px=px||0; py=py||0; pz=pz||0;
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(px,py,pz); m.castShadow=true; m.receiveShadow=true; return m;
+}
+function cyl(rt,rb,h,seg,mat,px,py,pz){
+  px=px||0; py=py||0; pz=pz||0;
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,seg),mat);
+  m.position.set(px,py,pz); m.castShadow=true; return m;
+}
+function sph(r,mat,px,py,pz){
+  px=px||0; py=py||0; pz=pz||0;
+  const m=new THREE.Mesh(new THREE.SphereGeometry(r,12,12),mat);
+  m.position.set(px,py,pz); m.castShadow=true; return m;
+}
+
+// ══════════════════════════════════════════════════════════
+// BUILD CHEST
+// ══════════════════════════════════════════════════════════
+const chest = new THREE.Group();
+scene.add(chest);
+
+const BW=3.2, BH=1.9, BD=2.1;
+
+// ── Body ──────────────────────────────────────────────────
+chest.add(box(BW,BH,BD,woodMat,0,0,0));
+
+// plank scoring lines
+for(let p=0;p<4;p++){
+  const y=-BH/2+0.35+p*0.42;
+  chest.add(box(BW+0.01,0.04,BD+0.01,woodDarkMat,0,y,0));
+}
+[-0.9,0,0.9].forEach(x=> chest.add(box(0.05,BH+0.01,BD+0.01,woodDarkMat,x,0,0)));
+
+// ── Lid ───────────────────────────────────────────────────
+const lidG=new THREE.Group();
+lidG.position.set(0,BH/2,-BD/2);
+chest.add(lidG);
+
+const NSEGS=14, LH=0.7, LD=BD;
+for(let i=0;i<NSEGS;i++){
+  const t=i/(NSEGS-1)-0.5;
+  const yOff=Math.cos(t*Math.PI)*LH;
+  const sliceD=LD/NSEGS+0.02;
+  const sl=box(BW,0.13,sliceD,(i%2===0?woodMat:woodDarkMat),0,yOff,t*LD+LD/2);
+  lidG.add(sl);
+}
+lidG.add(box(BW+0.01,0.03,LD+0.01,woodDarkMat,0,0.05,LD/2));
+
+// ── Corner posts & caps ───────────────────────────────────
+const corners=[[-1.55,1.0],[-1.55,-1.0],[1.55,1.0],[1.55,-1.0]];
+corners.forEach(function(c){
+  const x=c[0], z=c[1];
+  chest.add(box(0.14,BH+0.05,0.14,ironMat,x,0,z));
+  chest.add(box(0.24,0.08,0.24,goldMat,x,BH/2+0.03,z));
+  chest.add(box(0.3,0.1,0.3,ironMat,x,-BH/2-0.04,z));
+  // corner rivets
+  [-0.6,0.0,0.55].forEach(function(ry){
+    chest.add(sph(0.065,goldMat,x,ry,z+(z>0?0.06:-0.06)));
+  });
+});
+
+// ── Iron bands ────────────────────────────────────────────
+[-0.7,-0.05,0.6].forEach(function(y){
+  chest.add(box(3.38,0.1,0.08,ironMat,0,y,BD/2+0.01));
+  chest.add(box(3.38,0.1,0.08,ironMat,0,y,-BD/2-0.01));
+  chest.add(box(0.08,0.1,BD+0.05,ironMat,-BW/2-0.08,y,0));
+  chest.add(box(0.08,0.1,BD+0.05,ironMat, BW/2+0.08,y,0));
+  [-1.3,-0.65,0,0.65,1.3].forEach(function(x){
+    chest.add(sph(0.055,goldMat,x,y,BD/2+0.07));
+  });
+});
+
+// Lid bands
+[-1.1,0,1.1].forEach(function(x){
+  lidG.add(box(0.1,1.6,0.1,ironMat,x,LH*0.3,LD/2));
+});
+lidG.add(box(3.32,0.08,0.09,ironMat,0,0.05,LD+0.02));
+
+// ── Front rivets ──────────────────────────────────────────
+for(let row=0;row<3;row++) for(let col=0;col<5;col++){
+  chest.add(sph(0.055,goldMat,-1.2+col*0.6,-0.65+row*0.65,BD/2+0.04));
+}
+
+// ── Padlock ───────────────────────────────────────────────
+const lockG=new THREE.Group();
+lockG.position.set(0,-0.05,BD/2+0.22);
+chest.add(lockG);
+
+lockG.add(box(0.52,0.5,0.26,goldBrightMat,0,0,0));
+lockG.add(box(0.58,0.54,0.05,goldMat,0,0,0.14));
+
+// shackle
+const shackleMesh=new THREE.Mesh(new THREE.TorusGeometry(0.2,0.04,12,20,Math.PI),ironMat);
+shackleMesh.position.set(0,0.3,0); shackleMesh.rotation.z=Math.PI;
+lockG.add(shackleMesh);
+lockG.add(cyl(0.035,0.035,0.28,10,ironMat,-0.18,0.44,0));
+lockG.add(cyl(0.035,0.035,0.28,10,ironMat, 0.18,0.44,0));
+
+// keyhole
+const khMat=new THREE.MeshStandardMaterial({color:0x080400});
+const kh=new THREE.Mesh(new THREE.CircleGeometry(0.075,14),khMat);
+kh.position.set(0,0.06,0.14); lockG.add(kh);
+lockG.add(box(0.04,0.09,0.01,khMat,0,-0.065,0.14));
+
+// ruby on lock
+const lockRuby=new THREE.Mesh(new THREE.OctahedronGeometry(0.075,1),rubyMat);
+lockRuby.position.set(0,-0.1,0.14); lockRuby.rotation.y=Math.PI/4;
+lockG.add(lockRuby);
+
+lockG.add(box(0.72,0.14,0.1,ironMat,0,-0.37,0.04));
+[-0.28,0.28].forEach(function(x){ lockG.add(sph(0.05,goldMat,x,-0.37,0.1)); });
+
+// ── 3 Hinges (back) ───────────────────────────────────────
+[-1.0,0,1.0].forEach(function(x){
+  const hG=new THREE.Group();
+  hG.position.set(x,BH/2,-BD/2-0.01);
+  chest.add(hG);
+  const hcyl=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.36,14),ironMat);
+  hcyl.rotation.z=Math.PI/2; hG.add(hcyl);
+  hG.add(box(0.36,0.38,0.07,bronzeMat,0,-0.22,0.02));
+  hG.add(box(0.36,0.38,0.07,bronzeMat,0, 0.22,0.02));
+  [-0.12,0.12].forEach(function(rx){
+    hG.add(sph(0.04,goldMat,rx,-0.22,0.06));
+    hG.add(sph(0.04,goldMat,rx, 0.22,0.06));
+  });
+});
+
+// ── Side handles ──────────────────────────────────────────
+[-BW/2-0.1, BW/2+0.1].forEach(function(x,i){
+  const hG=new THREE.Group();
+  hG.position.set(x,0,0);
+  hG.rotation.y=(i===0?-Math.PI/2:Math.PI/2);
+  chest.add(hG);
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(0.24,0.045,10,24),ironMat);
+  ring.rotation.x=Math.PI/2; ring.position.z=0.05;
+  hG.add(ring);
+  hG.add(box(0.14,0.14,0.08,bronzeMat,-0.2,0,0));
+  hG.add(box(0.14,0.14,0.08,bronzeMat, 0.2,0,0));
+  hG.add(sph(0.05,goldMat,-0.2,0,0.05));
+  hG.add(sph(0.05,goldMat, 0.2,0,0.05));
+});
+
+// ── Front shield emblem ───────────────────────────────────
+const shG=new THREE.Group();
+shG.position.set(0,0.3,BD/2+0.09);
+chest.add(shG);
+shG.add(box(0.44,0.52,0.04,goldMat,0,0,0));
+shG.add(box(0.34,0.42,0.05,bronzeMat,0,0.02,0.02));
+shG.add(box(0.28,0.06,0.06,goldBrightMat,0,0.02,0.04));
+shG.add(box(0.06,0.32,0.06,goldBrightMat,0,0.02,0.04));
+const sRuby=new THREE.Mesh(new THREE.OctahedronGeometry(0.045,1),rubyMat);
+sRuby.position.set(0,0.02,0.08); shG.add(sRuby);
+
+// ── Base & top molding ────────────────────────────────────
+chest.add(box(3.3,0.09,BD+0.1,bronzeMat,0,-BH/2+0.04,0));
+chest.add(box(3.3,0.09,BD+0.1,bronzeMat,0, BH/2-0.04,0));
+
+// ── Leather corner bindings ───────────────────────────────
+[[-1.45,0,0.92],[1.45,0,0.92],[-1.45,0,-0.92],[1.45,0,-0.92]].forEach(function(p){
+  chest.add(box(0.08,BH+0.05,0.12,leatherMat,p[0],p[1],p[2]));
+});
+
+// ── Gems on lid ───────────────────────────────────────────
+var lidGemData=[
+  [rubyMat,   -1.1, LH*0.85, LD/2+0.08],
+  [sapphireMat, 0,  LH*0.9,  LD/2+0.08],
+  [emeraldMat, 1.1, LH*0.85, LD/2+0.08],
+];
+lidGemData.forEach(function(d){
+  var mat=d[0], gx=d[1], gy=d[2], gz=d[3];
+  var gem=new THREE.Mesh(new THREE.OctahedronGeometry(0.09,1),mat);
+  gem.position.set(gx,gy,gz); gem.rotation.y=Math.PI/4;
+  lidG.add(gem);
+  var mount=cyl(0.1,0.08,0.06,12,goldMat,gx,gy-0.06,gz);
+  lidG.add(mount);
+});
+
+// ── Coins ────────────────────────────────────────────────
+var coinData=[
+  [0.9,-1.42,0.85,0.35,0.5],[0.5,-1.43,1.0,0.1,-0.3],
+  [1.25,-1.41,0.6,0.6,0.8],[0.65,-1.42,0.7,0.15,-0.1],
+  [-0.65,-1.42,0.9,0.4,0.55],[-1.1,-1.41,0.7,0.1,-0.45],
+  [1.45,-1.40,0.8,0.7,0.2],[-1.35,-1.41,0.6,0.3,0.9],
+  [0.15,-1.43,1.05,0.2,0.4],[1.1,-1.41,0.95,0.5,-0.2],
+  [-0.35,-1.42,0.75,0.1,0.6],[1.7,-1.40,0.5,0.8,0.3],
+  [0.4,-1.50,1.2,0.0,0.1],[-0.4,-1.50,1.15,0.02,-0.05],
+  [0.8,-1.50,1.1,0.0,0.3],[1.2,-1.49,0.9,0.03,0.5],
+];
+coinData.forEach(function(c){
+  var coin=new THREE.Mesh(new THREE.CylinderGeometry(0.155,0.155,0.045,20),coinMat);
+  coin.position.set(c[0],c[1],c[2]); coin.rotation.x=c[3]; coin.rotation.z=c[4];
+  coin.castShadow=true; chest.add(coin);
+});
+
+// Stacked coins inside
+for(var s=0;s<5;s++){
+  var sc=new THREE.Mesh(new THREE.CylinderGeometry(0.145,0.145,0.04,18),coinMat);
+  sc.position.set(-0.3,BH/2-0.02+s*0.04,0.3);
+  sc.castShadow=true; chest.add(sc);
+}
+
+// ══════════════════════════════════════════════════════════
+// FLOATING DUST PARTICLES
+// ══════════════════════════════════════════════════════════
+var dustCount=180;
+var dustGeo=new THREE.BufferGeometry();
+var dustPos=new Float32Array(dustCount*3);
+var dustVel=[];
+for(var i=0;i<dustCount;i++){
+  dustPos[i*3]  =(Math.random()-0.5)*8;
+  dustPos[i*3+1]=(Math.random()-0.5)*5+1;
+  dustPos[i*3+2]=(Math.random()-0.5)*8;
+  dustVel.push({vx:(Math.random()-0.5)*0.004,vy:0.002+Math.random()*0.004,vz:(Math.random()-0.5)*0.003});
+}
+dustGeo.setAttribute('position',new THREE.BufferAttribute(dustPos,3));
+var dustMat=new THREE.PointsMaterial({color:0xc8922a,size:0.04,transparent:true,opacity:0.55,sizeAttenuation:true});
+scene.add(new THREE.Points(dustGeo,dustMat));
+
+// ══════════════════════════════════════════════════════════
+// ANIMATION
+// ══════════════════════════════════════════════════════════
+var phase='appear', elapsed=0, rotsDone=0, accumulated=0;
+chest.scale.set(0,0,0);
+chest.position.y=-3;
+
+var clock=new THREE.Clock();
+
+function animate(){
+  requestAnimationFrame(animate);
+  var dt=Math.min(clock.getDelta(),0.05);
+  elapsed+=dt;
+
+  // flicker
+  fillLight.intensity  =28+Math.sin(elapsed*6.3)*4+Math.sin(elapsed*14.1)*2;
+  bounceLight.intensity=7 +Math.sin(elapsed*8.7+1)*2;
+  gemGlow.intensity    =1.0+Math.sin(elapsed*3.2)*0.4;
+  keyLight.intensity   =115+Math.sin(elapsed*5.1+0.5)*8;
+
+  // dust
+  for(var i=0;i<dustCount;i++){
+    dustPos[i*3]  +=dustVel[i].vx;
+    dustPos[i*3+1]+=dustVel[i].vy;
+    dustPos[i*3+2]+=dustVel[i].vz;
+    if(dustPos[i*3+1]>4){ dustPos[i*3+1]=-2; dustPos[i*3]=(Math.random()-0.5)*8; }
+  }
+  dustGeo.attributes.position.needsUpdate=true;
+
+  if(phase==='appear'){
+    var t=Math.min(elapsed/1.8,1);
+    var eased=t<0.75?4*t*t*t:1-(Math.pow(-2*t+2,3)/2);
+    var s=eased+(t>0.85?Math.sin((t-0.85)/0.15*Math.PI)*0.07:0);
+    s=Math.min(s,1.06);
+    chest.scale.set(s,s,s);
+    chest.position.y=-3*(1-eased)*(1-eased);
+    chest.rotation.y=-0.8*(1-eased);
+    if(elapsed>2.2){phase='wait';elapsed=0;}
+  }
+  else if(phase==='wait'){
+    chest.scale.set(1,1,1);
+    chest.position.y=Math.sin(elapsed*1.4)*0.03;
+    if(elapsed>1.0){phase='rotate';elapsed=0;rotsDone=0;accumulated=0;}
+  }
+  else if(phase==='rotate'){
+    var rotSpeed=2.4;
+    var progress=elapsed/rotSpeed;
+    chest.rotation.y=accumulated+Math.min(progress,1)*Math.PI*2;
+    chest.position.y=Math.sin(elapsed*1.8)*0.025;
+    if(elapsed>=rotSpeed){
+      accumulated+=Math.PI*2;
+      elapsed=0; rotsDone++;
+      if(rotsDone>=3){phase='idle';chest.rotation.y=0;elapsed=0;}
+    }
+  }
+  else if(phase==='idle'){
+    chest.position.y=Math.sin(elapsed*0.9)*0.04;
+    chest.rotation.y+=0.004;
+    chest.rotation.x=Math.sin(elapsed*0.35)*0.05;
+  }
+
+  renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener('resize',function(){
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>

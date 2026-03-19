@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Biżuteria Średniowieczna</title>
+<style>
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #04050a;
+    width: 100vw; height: 100vh;
+    overflow: hidden;
+    font-family: 'Palatino Linotype', 'Book Antiqua', Palatino, serif;
+  }
+  canvas { display: block; position: fixed; inset: 0; }
+  #title {
+    position: fixed; top: 22px; left: 50%;
+    transform: translateX(-50%);
+    color: #e8c060;
+    font-size: clamp(12px, 1.1vw, 16px);
+    letter-spacing: 7px; text-transform: uppercase;
+    text-shadow: 0 0 30px #c09020bb, 0 0 70px #a07010 44;
+    white-space: nowrap; opacity: 0;
+    animation: fadeIn 2.5s ease 1.2s forwards;
+    pointer-events: none; z-index: 10;
+  }
+  #subtitle {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%);
+    color: #6a5020;
+    font-size: clamp(8px, 0.7vw, 10px);
+    letter-spacing: 5px; text-transform: uppercase;
+    white-space: nowrap; opacity: 0;
+    animation: fadeIn 2s ease 3.5s forwards;
+    pointer-events: none; z-index: 10;
+  }
+  #nav {
+    position: fixed; bottom: 55px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 20px; opacity: 0;
+    animation: fadeIn 2s ease 4s forwards; z-index: 10;
+  }
+  .nav-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #1e1408; border: 1px solid #7a5a18;
+    cursor: pointer; transition: background .3s, box-shadow .3s;
+  }
+  .nav-dot.active { background: #e8c060; box-shadow: 0 0 12px #e8c06099; }
+  @keyframes fadeIn { to { opacity: 1; } }
+</style>
+</head>
+<body>
+<div id="title">✦ &nbsp; B I Ż U T E R I A &nbsp; Ś R E D N I O W I E C Z N A &nbsp; ✦</div>
+<div id="subtitle">ZŁOTNICTWO · X – XV WIEK</div>
+<div id="nav">
+  <div class="nav-dot active" data-idx="0" title="Broszka"></div>
+  <div class="nav-dot"        data-idx="1" title="Pierścień"></div>
+  <div class="nav-dot"        data-idx="2" title="Naszyjnik"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+const CONFIG = {
+  items: [
+    { name: 'Broszka Annularna',  desc: 'ZŁOTO · GRANATY · XII WIEK' },
+    { name: 'Pierścień z Kamieniem', desc: 'ZŁOTO · SZAFIR · XIII WIEK' },
+    { name: 'Naszyjnik Złoty',    desc: 'ZŁOTO · EMALIA · XI WIEK' },
+  ],
+  dust: { count: 120 },
+};
+
+// ── Renderer ──────────────────────────────────────────────────────────
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled   = true;
+renderer.shadowMap.type      = THREE.PCFSoftShadowMap;
+renderer.toneMapping         = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.6;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x04050a);
+scene.fog        = new THREE.FogExp2(0x04050a, 0.030);
+
+const camera = new THREE.PerspectiveCamera(36, innerWidth/innerHeight, 0.01, 200);
+camera.position.set(0, 0.5, 16);
+camera.lookAt(0, 0, 0);
+
+// ── Textures ──────────────────────────────────────────────────────────
+function makeGoldTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 512;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(256,220,10,256,256,280);
+  g.addColorStop(0,   '#ffe878');
+  g.addColorStop(0.3, '#f0c028');
+  g.addColorStop(0.6, '#c89010');
+  g.addColorStop(1,   '#7a5004');
+  ctx.fillStyle = g; ctx.fillRect(0,0,512,512);
+  for (let i=0;i<160;i++) {
+    const a=Math.random()*Math.PI*2, r=Math.random()*250;
+    ctx.beginPath();
+    ctx.arc(256+Math.cos(a)*r, 256+Math.sin(a)*r, 0.5+Math.random()*2.5, 0, Math.PI*2);
+    ctx.fillStyle=`rgba(255,248,140,${0.05+Math.random()*0.20})`; ctx.fill();
+  }
+  for (let j=0;j<60;j++) {
+    ctx.beginPath();
+    ctx.moveTo(Math.random()*512,Math.random()*512);
+    ctx.lineTo(Math.random()*512,Math.random()*512);
+    ctx.strokeStyle=`rgba(80,50,5,${0.03+Math.random()*0.08})`;
+    ctx.lineWidth=0.3+Math.random()*0.7; ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function makeGarnetTex() {
+  const c = document.createElement('canvas'); c.width=c.height=256;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(90,80,4,128,128,140);
+  g.addColorStop(0,'#ff6060'); g.addColorStop(0.3,'#cc1820');
+  g.addColorStop(0.7,'#880010'); g.addColorStop(1,'#400008');
+  ctx.fillStyle=g; ctx.fillRect(0,0,256,256);
+  // facet highlights
+  for (let i=0;i<8;i++) {
+    ctx.beginPath();
+    ctx.moveTo(128,128);
+    const a=i/8*Math.PI*2;
+    ctx.lineTo(128+Math.cos(a)*90, 128+Math.sin(a)*90);
+    ctx.strokeStyle=`rgba(255,150,140,${0.1+Math.random()*0.15})`;
+    ctx.lineWidth=1; ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function makeSapphireTex() {
+  const c = document.createElement('canvas'); c.width=c.height=256;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(85,75,4,128,128,140);
+  g.addColorStop(0,'#a0c8ff'); g.addColorStop(0.25,'#3060d0');
+  g.addColorStop(0.6,'#1030a0'); g.addColorStop(1,'#080820');
+  ctx.fillStyle=g; ctx.fillRect(0,0,256,256);
+  for (let i=0;i<6;i++) {
+    const a=i/6*Math.PI*2;
+    ctx.beginPath(); ctx.moveTo(128,128);
+    ctx.lineTo(128+Math.cos(a)*95, 128+Math.sin(a)*95);
+    ctx.strokeStyle=`rgba(160,200,255,${0.12+Math.random()*0.18})`;
+    ctx.lineWidth=1.2; ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function makeEnamelTex() {
+  const c = document.createElement('canvas'); c.width=c.height=256;
+  const ctx = c.getContext('2d');
+  // Cloisonné-like blue/green enamel
+  const g = ctx.createRadialGradient(100,90,5,128,128,140);
+  g.addColorStop(0,'#60d0a0'); g.addColorStop(0.4,'#2090a0');
+  g.addColorStop(0.8,'#105878'); g.addColorStop(1,'#082838');
+  ctx.fillStyle=g; ctx.fillRect(0,0,256,256);
+  // cell lines (gold)
+  for (let i=0;i<12;i++) {
+    const a=i/12*Math.PI*2;
+    ctx.beginPath(); ctx.moveTo(128,128);
+    ctx.lineTo(128+Math.cos(a)*110, 128+Math.sin(a)*110);
+    ctx.strokeStyle='rgba(220,170,20,0.4)'; ctx.lineWidth=1.5; ctx.stroke();
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+const TEX = {
+  gold:    makeGoldTex(),
+  garnet:  makeGarnetTex(),
+  sapph:   makeSapphireTex(),
+  enamel:  makeEnamelTex(),
+};
+
+// ── Materials ─────────────────────────────────────────────────────────
+const MAT = {
+  goldBright: new THREE.MeshStandardMaterial({
+    map:TEX.gold, color:0xf0c830, roughness:0.10, metalness:1.0,
+    emissive:0x6a3c00, emissiveIntensity:0.30,
+  }),
+  goldMid: new THREE.MeshStandardMaterial({
+    map:TEX.gold, color:0xd4a010, roughness:0.18, metalness:1.0,
+    emissive:0x3a2000, emissiveIntensity:0.15,
+  }),
+  goldDark: new THREE.MeshStandardMaterial({
+    map:TEX.gold, color:0xa07808, roughness:0.28, metalness:0.95,
+    emissive:0x180e00, emissiveIntensity:0.08,
+  }),
+  garnet: new THREE.MeshStandardMaterial({
+    map:TEX.garnet, color:0xcc1018, roughness:0.08, metalness:0.0,
+    emissive:0x880010, emissiveIntensity:0.55,
+    transparent:true, opacity:0.92,
+  }),
+  sapphire: new THREE.MeshStandardMaterial({
+    map:TEX.sapph, color:0x1840c0, roughness:0.05, metalness:0.0,
+    emissive:0x0818a0, emissiveIntensity:0.45,
+    transparent:true, opacity:0.90,
+  }),
+  enamel: new THREE.MeshStandardMaterial({
+    map:TEX.enamel, color:0x1880a0, roughness:0.12, metalness:0.0,
+    emissive:0x084860, emissiveIntensity:0.35,
+  }),
+  pearl: new THREE.MeshStandardMaterial({
+    color:0xf0ece0, roughness:0.20, metalness:0.0,
+    emissive:0x181410, emissiveIntensity:0.15,
+  }),
+};
+
+// ── Lights ────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x180e04, 0.45));
+
+const keyLight = new THREE.SpotLight(0xffe898, 95, 26, Math.PI/7, 0.25, 1.5);
+keyLight.position.set(4, 8, 6);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048,2048);
+keyLight.shadow.bias = -0.001;
+scene.add(keyLight, keyLight.target);
+
+const fillLight = new THREE.PointLight(0xff8830, 16, 16, 2);
+fillLight.position.set(-5, 2, 3);
+scene.add(fillLight);
+
+const rimLight = new THREE.DirectionalLight(0xd0a020, 1.0);
+rimLight.position.set(-3, 4, -8);
+scene.add(rimLight);
+
+const topLight = new THREE.PointLight(0xffd060, 14, 14, 2);
+topLight.position.set(0, 8, 2);
+scene.add(topLight);
+
+// gem glow lights
+const gemLight1 = new THREE.PointLight(0xff2020, 0, 4, 2);
+scene.add(gemLight1);
+const gemLight2 = new THREE.PointLight(0x2040ff, 0, 4, 2);
+scene.add(gemLight2);
+
+// ── Geometry helpers ──────────────────────────────────────────────────
+function mk(geo, mat, {x=0,y=0,z=0,rx=0,ry=0,rz=0}={}) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x,y,z); m.rotation.set(rx,ry,rz);
+  m.castShadow = m.receiveShadow = true;
+  return m;
+}
+function lathe(pts, mat, segs=48, opts={}) {
+  return mk(new THREE.LatheGeometry(pts.map(([x,y])=>new THREE.Vector2(x,y)), segs), mat, opts);
+}
+function cyl(rt,rb,h,seg,mat,opts={}) { return mk(new THREE.CylinderGeometry(rt,rb,h,seg), mat, opts); }
+function sph(r,seg,mat,opts={})       { return mk(new THREE.SphereGeometry(r,seg,Math.ceil(seg*0.6)), mat, opts); }
+function tor(R,r,ns,nt,mat,opts={})   { return mk(new THREE.TorusGeometry(R,r,ns,nt), mat, opts); }
+function box(w,h,d,mat,opts={})       { return mk(new THREE.BoxGeometry(w,h,d), mat, opts); }
+
+function tubeCurve(pts3, radius, seg, radSeg, mat) {
+  const m = new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts3), seg, radius, radSeg, false), mat
+  );
+  m.castShadow = true; return m;
+}
+
+// Cabochon gem – domed top, flat bottom
+function cabochon(rx, ry, rz, mat, opts={}) {
+  const g = new THREE.Group();
+  // dome
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(1,16,10,0,Math.PI*2,0,Math.PI/2), mat);
+  dome.scale.set(rx, ry, rz);
+  dome.castShadow = true;
+  g.add(dome);
+  // flat base disc
+  g.add(mk(new THREE.CircleGeometry(rx, 16), mat, { rx: Math.PI/2 }));
+  const {x=0,y=0,z=0} = opts;
+  g.position.set(x,y,z);
+  return g;
+}
+
+// Bezel setting for a gem
+function bezel(outerR, h, mat, opts={}) {
+  const g = new THREE.Group();
+  // outer ring
+  g.add(cyl(outerR+0.04, outerR+0.04, h, 20, mat));
+  // inner cutout (slightly smaller, open top)
+  const {x=0,y=0,z=0} = opts;
+  g.position.set(x,y,z);
+  return g;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ITEM 1 – Broszka annularna (annular brooch, XII c.)
+// Ring brooch with pin, granate settings, filigree decoration
+// ══════════════════════════════════════════════════════════════════════
+function buildBroszka() {
+  const g = new THREE.Group();
+
+  // Main ring – thick gold torus
+  g.add(tor(1.20, 0.22, 16, 48, MAT.goldMid));
+
+  // Outer decorative edge – thin raised rim
+  g.add(tor(1.20, 0.26, 8, 48, MAT.goldBright));
+  // rope-twist pattern
+  for (let i=0;i<32;i++) {
+    const a = i/32*Math.PI*2;
+    const cx = Math.cos(a)*1.20, cy = Math.sin(a)*1.20;
+    g.add(sph(0.07, 8, MAT.goldBright, { x:cx, y:cy, z:0.20 }));
+    g.add(sph(0.05, 8, MAT.goldDark,   { x:cx, y:cy, z:-0.20 }));
+  }
+
+  // 8 garnet cabochon settings evenly around ring
+  for (let i=0;i<8;i++) {
+    const a = i/8*Math.PI*2;
+    const cx = Math.cos(a)*1.20, cy = Math.sin(a)*1.20;
+
+    // bezel
+    const bz = cyl(0.17, 0.17, 0.14, 16, MAT.goldDark, { x:cx, y:cy, z:0.14 });
+    g.add(bz);
+    // bezel rim
+    g.add(tor(0.17, 0.04, 6, 16, MAT.goldBright, { x:cx, y:cy, z:0.22, rx:Math.PI/2 }));
+
+    // garnet cabochon
+    const gem = cabochon(0.14, 0.10, 0.14, MAT.garnet);
+    gem.position.set(cx, cy, 0.22);
+    g.add(gem);
+
+    // prong claws (4 around each gem)
+    for (let p=0;p<4;p++) {
+      const pa = p/4*Math.PI*2 + a;
+      g.add(box(0.04,0.04,0.14, MAT.goldDark, {
+        x: cx+Math.cos(pa)*0.14, y: cy+Math.sin(pa)*0.14, z:0.24,
+      }));
+    }
+  }
+
+  // Filigree rosettes between gems
+  for (let i=0;i<8;i++) {
+    const a = (i+0.5)/8*Math.PI*2;
+    const cx = Math.cos(a)*1.20, cy = Math.sin(a)*1.20;
+    // rosette centre
+    g.add(sph(0.08, 8, MAT.goldBright, { x:cx, y:cy, z:0.26 }));
+    // petals
+    for (let p=0;p<6;p++) {
+      const pa = p/6*Math.PI*2;
+      g.add(sph(0.045, 6, MAT.goldMid, {
+        x: cx+Math.cos(pa)*0.11, y: cy+Math.sin(pa)*0.11, z:0.24,
+      }));
+    }
+  }
+
+  // Pin (long straight bar across ring)
+  g.add(cyl(0.025, 0.012, 3.20, 8, MAT.goldBright, { x:0, y:0, z:0.05, rz:Math.PI/2 }));
+  // Pin head
+  g.add(sph(0.06, 8, MAT.goldBright, { x:-1.60, y:0, z:0.05 }));
+  // Pin hinge loop
+  g.add(tor(0.10, 0.03, 6, 12, MAT.goldDark, { x:1.20, y:0, z:0, rx:Math.PI/2 }));
+
+  return g;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ITEM 2 – Pierścień z kamieniem (sapphire ring, XIII c.)
+// Heavy gold band, high bezel setting, sapphire cabochon, engraved shoulders
+// ══════════════════════════════════════════════════════════════════════
+function buildPierscion() {
+  const g = new THREE.Group();
+
+  // Band – wide gold ring
+  g.add(tor(0.80, 0.28, 14, 48, MAT.goldMid));
+
+  // Engraved shoulders – decorative bands
+  for (const rz of [-0.18, 0.18]) {
+    g.add(tor(0.80, 0.06, 8, 48, MAT.goldBright, { rz }));
+  }
+
+  // Dot-punch decoration around band
+  for (let i=0;i<24;i++) {
+    const a = i/24*Math.PI*2;
+    g.add(sph(0.035, 6, MAT.goldDark, {
+      x: Math.cos(a)*(0.80), y: Math.sin(a)*(0.80), z: 0.26,
+    }));
+    g.add(sph(0.035, 6, MAT.goldDark, {
+      x: Math.cos(a)*(0.80), y: Math.sin(a)*(0.80), z: -0.26,
+    }));
+  }
+
+  // High bezel mount on top
+  const bx=0, by=0.80+0.28, bz=0;
+  // Octagonal bezel column
+  g.add(lathe([
+    [0.00,0],[0.26,0],[0.30,0.08],[0.32,0.22],
+    [0.30,0.42],[0.28,0.54],[0.30,0.60],
+    [0.34,0.64],[0.34,0.70],[0.28,0.72],[0.00,0.72],
+  ], MAT.goldDark, 8, { x:bx, y:by-0.14, z:bz, rx:Math.PI/2 }));
+
+  // Bezel collar
+  g.add(tor(0.32, 0.05, 8, 24, MAT.goldBright, { x:bx, y:by+0.50, z:bz, rx:Math.PI/2 }));
+
+  // Sapphire cabochon
+  const gem = cabochon(0.26, 0.22, 0.26, MAT.sapphire);
+  gem.position.set(bx, by+0.54, bz);
+  gem.rotation.x = Math.PI/2;
+  g.add(gem);
+
+  // Four corner prongs
+  for (let p=0;p<4;p++) {
+    const pa = p/4*Math.PI*2 + Math.PI/4;
+    g.add(lathe([
+      [0.02,0],[0.04,0.08],[0.05,0.30],[0.03,0.50],[0.01,0.60],
+    ], MAT.goldBright, 6, {
+      x: bx+Math.cos(pa)*0.26, y: by+0.54, z: bz+Math.sin(pa)*0.26,
+      rx: Math.PI/2 + Math.atan2(Math.sin(pa), Math.cos(pa))*0,
+      ry: pa,
+    }));
+  }
+
+  // Shoulder scrollwork
+  for (const side of [-1,1]) {
+    for (let i=0;i<4;i++) {
+      const a = i/4*Math.PI/2 - Math.PI/4;
+      g.add(sph(0.055, 6, MAT.goldMid, {
+        x: Math.cos(a)*0.82*side * (side>0?1:1),
+        y: by * 0.3,
+        z: Math.sin(a)*0.82,
+      }));
+    }
+  }
+
+  return g;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// ITEM 3 – Naszyjnik złoty (gold necklace with enamel pendants, XI c.)
+// Chain of linked elements + central enamel pendant
+// ══════════════════════════════════════════════════════════════════════
+function buildNaszyjnik() {
+  const g = new THREE.Group();
+
+  // Chain arc (catenary) of gold links
+  const N = 36;
+  const spread = 2.6, sag = 1.0;
+
+  for (let i=0;i<N;i++) {
+    const t = (i+0.5)/N;
+    const lt = (t-0.5)*2;
+    const cx = lt*spread;
+    const cy = sag*lt*lt - 0.2;
+
+    // Alternating round & oval links
+    if (i%2===0) {
+      g.add(tor(0.13, 0.045, 6, 14, MAT.goldBright, { x:cx, y:cy, z:0, rx:Math.PI/2 }));
+    } else {
+      // elongated link
+      const lt2 = ((i+1.5)/N-0.5)*2;
+      const dx = lt2*spread - cx;
+      const dy = sag*lt2*lt2 - 0.2 - cy;
+      const ang = Math.atan2(dy, dx);
+      g.add(tor(0.10, 0.038, 6, 12, MAT.goldMid, { x:cx, y:cy, z:0, ry:ang }));
+    }
+
+    // Small beaded garnets on every 4th link
+    if (i%4===0 && i>0 && i<N-1) {
+      g.add(sph(0.09, 8, MAT.garnet, { x:cx, y:cy-0.14, z:0 }));
+      g.add(tor(0.09, 0.025, 6, 12, MAT.goldDark, { x:cx, y:cy-0.14, z:0, rx:Math.PI/2 }));
+    }
+  }
+
+  // Clasp at ends
+  for (const side of [-1,1]) {
+    const ex = side*spread, ey = sag - 0.2;
+    g.add(sph(0.12, 8, MAT.goldBright, { x:ex, y:ey }));
+    g.add(tor(0.08, 0.03, 6, 10, MAT.goldMid, { x:ex, y:ey+0.18 }));
+  }
+
+  // Central pendant – cruciform enamel
+  const py = -0.30;
+  // pendant bail
+  g.add(tor(0.12, 0.04, 6, 14, MAT.goldBright, { y: py+0.56 }));
+  g.add(cyl(0.04, 0.04, 0.22, 8, MAT.goldDark,  { y: py+0.45 }));
+
+  // pendant cross arms
+  // vertical
+  g.add(box(0.22, 0.88, 0.10, MAT.goldDark, { y: py }));
+  // horizontal
+  g.add(box(0.72, 0.22, 0.10, MAT.goldDark, { y: py+0.12 }));
+
+  // enamel inlays on cross arms
+  g.add(box(0.14, 0.60, 0.08, MAT.enamel, { y: py, z: 0.01 }));
+  g.add(box(0.52, 0.14, 0.08, MAT.enamel, { y: py+0.12, z: 0.01 }));
+
+  // Central gem
+  const cg = cabochon(0.16, 0.13, 0.16, MAT.garnet);
+  cg.position.set(0, py+0.12, 0.10);
+  cg.rotation.x = Math.PI/2;
+  g.add(cg);
+  g.add(tor(0.18, 0.04, 6, 18, MAT.goldBright, { y: py+0.12, z: 0.06, rx: Math.PI/2 }));
+
+  // Corner pearls
+  for (const [px2,py2] of [[-0.0,py+0.50],[0.0,py-0.30],[-0.40,py+0.12],[0.40,py+0.12]]) {
+    g.add(sph(0.09, 8, MAT.pearl, { x:px2, y:py2, z:0.10 }));
+    g.add(tor(0.09, 0.025, 6, 10, MAT.goldDark, { x:px2, y:py2, z:0.06, rx:Math.PI/2 }));
+  }
+
+  // Pendant outer border
+  g.add(box(0.78, 0.04, 0.08, MAT.goldBright, { y: py+0.56 }));
+  g.add(box(0.78, 0.04, 0.08, MAT.goldBright, { y: py-0.32 }));
+  g.add(box(0.04, 0.92, 0.08, MAT.goldBright, { x:-0.37, y: py+0.12 }));
+  g.add(box(0.04, 0.92, 0.08, MAT.goldBright, { x: 0.37, y: py+0.12 }));
+
+  return g;
+}
+
+// ── Dust ──────────────────────────────────────────────────────────────
+function buildDust() {
+  const N = CONFIG.dust.count;
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(N*3);
+  const vel = [];
+  for (let i=0;i<N;i++) {
+    pos[i*3]   = (Math.random()-0.5)*18;
+    pos[i*3+1] = (Math.random()-0.5)*14;
+    pos[i*3+2] = (Math.random()-0.5)*9;
+    vel.push({ x:(Math.random()-0.5)*0.0025, y:0.0008+Math.random()*0.0025, z:(Math.random()-0.5)*0.0018 });
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  return {
+    pts: new THREE.Points(geo, new THREE.PointsMaterial({
+      color:0xd4a030, size:0.022, transparent:true, opacity:0.30, sizeAttenuation:true,
+    })),
+    pos, vel, N,
+  };
+}
+
+// ── Animation state machine ───────────────────────────────────────────
+class Animator {
+  constructor(target) {
+    this.target=target; this.state='appear';
+    this.elapsed=0; this.rotsDone=0; this.accum=0;
+  }
+  reset() {
+    this.state='appear'; this.elapsed=0; this.rotsDone=0; this.accum=0;
+    this.target.scale.setScalar(0);
+    this.target.position.set(0,-7,0);
+    this.target.rotation.set(0,0,0);
+  }
+  update(dt) {
+    this.elapsed+=dt;
+    const m=this.target;
+    if (this.state==='appear') {
+      const t=Math.min(this.elapsed/1.8,1);
+      const e=t<0.75?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+      const b=t>0.85?Math.sin((t-0.85)/0.15*Math.PI)*0.065:0;
+      m.scale.setScalar(Math.min(e+b,1.06));
+      m.position.y=-7*(1-e)*(1-e);
+      m.rotation.y=(1-e)*Math.PI*0.8;
+      if (this.elapsed>2.4){this.state='wait';this.elapsed=0;}
+    } else if (this.state==='wait') {
+      m.scale.setScalar(1);
+      m.position.y=Math.sin(this.elapsed*1.1)*0.025;
+      if (this.elapsed>0.9){this.state='rotate';this.elapsed=0;}
+    } else if (this.state==='rotate') {
+      m.rotation.y=this.accum+Math.min(this.elapsed/2.7,1)*Math.PI*2;
+      m.position.y=Math.sin(this.elapsed*1.4)*0.02;
+      if (this.elapsed>=2.7){
+        this.accum+=Math.PI*2; this.elapsed=0; this.rotsDone++;
+        if (this.rotsDone>=2){m.rotation.y=0;this.state='idle';this.elapsed=0;}
+      }
+    } else {
+      m.position.y=Math.sin(this.elapsed*0.85)*0.09;
+      m.rotation.y+=0.004;
+      m.rotation.x=Math.sin(this.elapsed*0.38)*0.055;
+    }
+  }
+}
+
+// ── Scene assembly ────────────────────────────────────────────────────
+const items = [buildBroszka, buildPierscion, buildNaszyjnik].map(fn => {
+  const g=fn(); g.visible=false; scene.add(g); return g;
+});
+const dust=buildDust(); scene.add(dust.pts);
+
+let current=0;
+items[0].visible=true;
+let animator=new Animator(items[0]);
+items[0].scale.setScalar(0);
+items[0].position.set(0,-7,0);
+
+// Gem light targets
+function updateGemLights(idx) {
+  if (idx===0) { gemLight1.intensity=4; gemLight1.position.set(0,0,1); gemLight2.intensity=0; }
+  else if (idx===1) { gemLight2.intensity=5; gemLight2.position.set(0,1.1,1); gemLight1.intensity=0; }
+  else { gemLight1.intensity=3; gemLight1.position.set(0,-0.3,1); gemLight2.intensity=0; }
+}
+updateGemLights(0);
+
+// ── Navigation ────────────────────────────────────────────────────────
+function switchItem(idx) {
+  if (idx===current) return;
+  items[current].visible=false;
+  current=idx;
+  items[current].visible=true;
+  animator=new Animator(items[current]);
+  animator.reset();
+  updateGemLights(idx);
+  document.querySelectorAll('.nav-dot').forEach((d,i)=>d.classList.toggle('active',i===idx));
+  const cfg=CONFIG.items[idx];
+  document.getElementById('title').textContent   =`✦  ${cfg.name.toUpperCase()}  ✦`;
+  document.getElementById('subtitle').textContent=cfg.desc;
+}
+
+document.querySelectorAll('.nav-dot').forEach(d=>d.addEventListener('click',()=>switchItem(+d.dataset.idx)));
+window.addEventListener('keydown',e=>{
+  if (e.key==='ArrowRight') switchItem((current+1)%3);
+  if (e.key==='ArrowLeft')  switchItem((current+2)%3);
+});
+
+// ── Render loop ───────────────────────────────────────────────────────
+const clock=new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),0.05);
+  const t=clock.elapsedTime;
+
+  fillLight.intensity=14+Math.sin(t*6.1)*2.5+Math.sin(t*13.4)*1;
+  topLight.intensity =11+Math.sin(t*4.3+0.8)*2;
+  keyLight.intensity =88+Math.sin(t*5.1+0.3)*7;
+  gemLight1.intensity= (gemLight1.intensity>0) ? 3+Math.sin(t*7)*1.5 : 0;
+  gemLight2.intensity= (gemLight2.intensity>0) ? 4+Math.sin(t*6.3)*1.8 : 0;
+
+  for (let i=0;i<dust.N;i++) {
+    dust.pos[i*3]  +=dust.vel[i].x;
+    dust.pos[i*3+1]+=dust.vel[i].y;
+    dust.pos[i*3+2]+=dust.vel[i].z;
+    if (dust.pos[i*3+1]>8){dust.pos[i*3+1]=-6;dust.pos[i*3]=(Math.random()-0.5)*18;}
+  }
+  dust.pts.geometry.attributes.position.needsUpdate=true;
+
+  animator.update(dt);
+  renderer.render(scene,camera);
+}
+animate();
+
+window.addEventListener('resize',()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
